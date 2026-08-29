@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import io
 import pandas as pd
 import requests
@@ -62,14 +62,21 @@ def get_turnaround(team_name):
     return stats_dict.get(clean, 0.125)
 
 
-def format_kickoff_time(iso_str):
+def parse_kickoff_datetime(iso_str):
+    """Parses ISO string to UTC datetime object."""
     if not iso_str:
-        return "TBD"
+        return None
     try:
-        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%a %d %b %H:%M")
+        return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
     except Exception:
-        return iso_str
+        return None
+
+
+def format_kickoff_time(dt):
+    """Formats datetime object into readable string."""
+    if not dt:
+        return "TBD"
+    return dt.strftime("%a %d %b %H:%M")
 
 
 # ---------------------------------------------------------
@@ -120,13 +127,22 @@ def fetch_live_fixtures(api_key):
 raw_fixtures = fetch_live_fixtures(api_key_input)
 table_rows = []
 
+# Get current UTC time to filter out started/past matches
+now_utc = datetime.now(timezone.utc)
+
 if raw_fixtures:
     for match in raw_fixtures:
+        commence_raw = match.get("commence_time", "")
+        dt_kickoff = parse_kickoff_datetime(commence_raw)
+
+        # Skip match if it has already kicked off
+        if dt_kickoff and dt_kickoff <= now_utc:
+            continue
+
         home_team = match.get("home_team", "Unknown")
         away_team = match.get("away_team", "Unknown")
         league = match.get("sport_title", "Soccer")
-        commence_raw = match.get("commence_time", "")
-        kickoff_fmt = format_kickoff_time(commence_raw)
+        kickoff_fmt = format_kickoff_time(dt_kickoff)
 
         bookies = match.get("bookmakers", [])
         if not bookies:
@@ -196,7 +212,7 @@ if raw_fixtures:
                 )
 
 # ---------------------------------------------------------
-# 5. DASHBOARD LAYOUT (OUTPLAYED MASTER STYLE)
+# 5. DASHBOARD LAYOUT
 # ---------------------------------------------------------
 tab1, tab2 = st.tabs(["⚡ 2UP Master Odds", "📊 Performance Tracker"])
 
@@ -208,12 +224,10 @@ with tab1:
             "⚠️ Please enter your Odds API Key in the sidebar or setup Secrets to load match odds."
         )
     elif not table_rows:
-        st.info("No 2UP opportunities found.")
+        st.info("No upcoming 2UP opportunities found.")
     else:
-        # Dataframe conversion and filtering
         df_master = pd.DataFrame(table_rows)
 
-        # Apply user filters
         filtered_df = df_master[
             (df_master["Rating"].isin(selected_statuses))
             & (df_master["EV %"] >= min_ev_filter)
@@ -224,9 +238,8 @@ with tab1:
             )
         ]
 
-        # Top summary metrics bar
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Available Fixtures", len(filtered_df))
+        c1.metric("Upcoming Fixtures", len(filtered_df))
         c2.metric(
             "Excellent Matches",
             len(filtered_df[filtered_df["Rating"] == "🟢 EXCELLENT"]),
@@ -251,9 +264,8 @@ with tab1:
         st.divider()
 
         if filtered_df.empty:
-            st.info("No fixtures matched your selected filters.")
+            st.info("No upcoming fixtures matched your selected filters.")
         else:
-            # Render styled interactive Outplayed-style master table
             edited_df = st.data_editor(
                 filtered_df,
                 column_config={
@@ -262,7 +274,7 @@ with tab1:
                         help="Check to log bet to tracker",
                         default=False,
                     ),
-                    "id": None,  # Hide internal ID
+                    "id": None,
                     "Rating": st.column_config.TextColumn(
                         "Rating", width="medium"
                     ),
@@ -307,7 +319,6 @@ with tab1:
                 use_container_width=True,
             )
 
-            # Process tracked items checked in the grid table
             if st.button("📌 Save Checked Bets to Tracker"):
                 new_tracked_count = 0
                 for _, row in edited_df.iterrows():
