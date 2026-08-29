@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import math
 import io
 import pandas as pd
@@ -8,6 +8,25 @@ import streamlit as st
 st.set_page_config(
     page_title="2UP Master Finder & Tracker", page_icon="⚽", layout="wide"
 )
+
+# Recognized 2UP Bookies & Lay Exchanges mapping (Key -> Display Name)
+BOOKMAKER_MAP = {
+    "All": "All 2UP Bookies",
+    "bet365": "Bet365",
+    "skybet": "Sky Bet",
+    "paddypower": "Paddy Power",
+    "boylesports": "BoyleSports",
+    "ladbrokes": "Ladbrokes",
+    "coral": "Coral",
+    "betfair_sb_uk": "Betfair Sportsbook",
+}
+
+EXCHANGE_MAP = {
+    "All": "All Exchanges",
+    "betfair_ex_uk": "Betfair Exchange",
+    "smarkets": "Smarkets",
+    "matchbook": "Matchbook",
+}
 
 # ---------------------------------------------------------
 # 1. SESSION STATE INITIALIZATION
@@ -64,16 +83,14 @@ def get_historical_turnaround(team_name):
 
 
 # ---------------------------------------------------------
-# 3. HYBRID FTA% MODEL (POISSON + HISTORICAL)
+# 3. HYBRID FTA% MODEL
 # ---------------------------------------------------------
 def calculate_hybrid_fta(
     team_name, back_odds, total_goals_lambda=2.65, is_home=True
 ):
-    """Combines live Poisson implied goal probabilities with historical 2UP turnaround data."""
     if not back_odds or back_odds <= 1.0:
         return 1.80
 
-    # Step A: Compute Poisson Probability
     implied_win_prob = 1.0 / back_odds
     home_bias = 1.10 if is_home else 0.90
     team_exp_goals = max(
@@ -87,17 +104,12 @@ def calculate_hybrid_fta(
     poisson_fta = (p_2plus_goals * implied_win_prob) * 10
     poisson_fta_scaled = max(0.80, min(poisson_fta, 3.20))
 
-    # Step B: Retrieve Historical Turnaround
     hist_turnaround = get_historical_turnaround(team_name)
 
-    # Step C: Blend Poisson + Historical
     if hist_turnaround is not None:
-        # Convert decimal rate to percentage (e.g. 0.15 -> 15.0% scale down to FTA scale)
         hist_fta_scaled = max(0.80, min(hist_turnaround * 12.0, 3.50))
-        # 60% historical weighting + 40% Poisson weighting
         blended_fta = (hist_fta_scaled * 0.60) + (poisson_fta_scaled * 0.40)
     else:
-        # Use Poisson model as primary fallback for unlisted teams
         blended_fta = poisson_fta_scaled
 
     return round(blended_fta, 2)
@@ -119,7 +131,7 @@ def format_kickoff_time(dt):
 
 
 # ---------------------------------------------------------
-# 4. SIDEBAR CONTROLS & API KEY
+# 4. SIDEBAR CONTROLS & DROPDOWNS
 # ---------------------------------------------------------
 st.sidebar.title("⚙️ Outplayed 2UP Filters")
 
@@ -132,6 +144,19 @@ api_key_input = st.sidebar.text_input(
 )
 
 st.sidebar.divider()
+
+# Bookie & Exchange Selection Dropdowns
+selected_bookie_key = st.sidebar.selectbox(
+    "Select 2UP Bookmaker",
+    options=list(BOOKMAKER_MAP.keys()),
+    format_func=lambda x: BOOKMAKER_MAP[x],
+)
+
+selected_exchange_key = st.sidebar.selectbox(
+    "Select Lay Exchange",
+    options=list(EXCHANGE_MAP.keys()),
+    format_func=lambda x: EXCHANGE_MAP[x],
+)
 
 min_ev_filter = st.sidebar.slider(
     "Minimum EV % (Base 100%)", 90.0, 115.0, 98.0, 0.5
@@ -163,13 +188,15 @@ raw_fixtures = fetch_live_fixtures(api_key_input)
 cards_data = []
 
 now_utc = datetime.now(timezone.utc)
+in_24_hours = now_utc + timedelta(hours=24)
 
 if raw_fixtures:
     for match in raw_fixtures:
         commence_raw = match.get("commence_time", "")
         dt_kickoff = parse_kickoff_datetime(commence_raw)
 
-        if dt_kickoff and dt_kickoff <= now_utc:
+        # 24 Hours Filter
+        if not dt_kickoff or dt_kickoff <= now_utc or dt_kickoff > in_24_hours:
             continue
 
         home_team = match.get("home_team", "Unknown")
@@ -184,31 +211,54 @@ if raw_fixtures:
         for side, team_name in [("Home", home_team), ("Away", away_team)]:
             back_odds = None
             lay_odds = None
-            bookie_name = "Bookie"
+            bookie_name = None
             exchange_name = "Exchange"
 
             for b in bookies:
+                b_key = b.get("key", "").lower()
                 b_title = b.get("title", "")
+
+                # Exchange logic
                 is_exchange = any(
-                    ex in b.get("key", "").lower()
-                    for ex in ["ex", "smarkets", "matchbook", "betfair"]
+                    ex in b_key for ex in ["ex", "smarkets", "matchbook"]
                 )
+                if selected_exchange_key != "All":
+                    is_target_exchange = selected_exchange_key in b_key
+                else:
+                    is_target_exchange = is_exchange
+
+                # Bookie logic
+                if selected_bookie_key != "All":
+                    is_target_bookie = selected_bookie_key in b_key
+                else:
+                    is_target_bookie = any(
+                        bk in b_key for bk in BOOKMAKER_MAP.keys() if bk != "All"
+                    )
 
                 for m in b.get("markets", []):
                     if m["key"] == "h2h":
                         for outcome in m.get("outcomes", []):
                             if outcome["name"] == team_name:
                                 price = outcome["price"]
-                                if is_exchange and (
-                                    lay_odds is None or price < lay_odds
+                                if (
+                                    is_exchange
+                                    and is_target_exchange
+                                    and (lay_odds is None or price < lay_odds)
                                 ):
                                     lay_odds = price
                                     exchange_name = b_title
-                                elif not is_exchange and (
-                                    back_odds is None or price > back_odds
+                                elif (
+                                    not is_exchange
+                                    and is_target_bookie
+                                    and (
+                                        back_odds is None or price > back_odds
+                                    )
                                 ):
                                     back_odds = price
                                     bookie_name = b_title
+
+            if not bookie_name or not back_odds:
+                continue
 
             if back_odds and not lay_odds:
                 lay_odds = round(back_odds * 1.02, 2)
@@ -220,7 +270,6 @@ if raw_fixtures:
                     team_name, back_odds, is_home=is_home_bool
                 )
 
-                # Outplayed EV Formula
                 ev_pct = round(
                     ((back_odds / lay_odds) + (fta_pct / 100)) * 100, 1
                 )
@@ -241,7 +290,10 @@ if raw_fixtures:
                     }
                 )
 
-cards_data = sorted(cards_data, key=lambda x: x["ev_pct"], reverse=True)
+# SORT BY HIGHEST CHANCE OF TURNAROUND (FTA%) FIRST, THEN BY EV%
+cards_data = sorted(
+    cards_data, key=lambda x: (x["fta_pct"], x["ev_pct"]), reverse=True
+)
 
 # ---------------------------------------------------------
 # 6. DASHBOARD LAYOUT (OUTPLAYED CARDS)
@@ -249,14 +301,14 @@ cards_data = sorted(cards_data, key=lambda x: x["ev_pct"], reverse=True)
 tab1, tab2 = st.tabs(["⚡ Outplayed 2UP Master", "📊 Performance Tracker"])
 
 with tab1:
-    st.title("2UP Opportunities")
+    st.title("2UP Opportunities (Highest Turnaround Chance First)")
 
     if not api_key_input:
         st.warning(
             "⚠️ Please enter your Odds API Key in the sidebar or setup Secrets."
         )
     elif not cards_data:
-        st.info("No upcoming 2UP opportunities found.")
+        st.info("No matching 2UP opportunities found for your selected filters.")
     else:
         filtered_cards = [
             c
@@ -295,10 +347,10 @@ with tab1:
                             <div style="font-size: 16px; font-weight: bold; color: #d32f2f;">{item['lay_odds']}</div>
                             <div style="font-size: 10px; color: #444; margin-top: 2px;"><b>{item['exchange']}</b></div>
                         </div>
-                        <div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 11px; color: #666;">FTA%</div>
-                            <div style="font-size: 16px; font-weight: bold; color: #00b0ff;">{item['fta_pct']}%</div>
-                            <div style="font-size: 10px; color: #444; margin-top: 2px;">Hybrid Prob</div>
+                        <div style="flex: 1; background: #e3f2fd; border: 1px solid #90caf9; padding: 8px 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 11px; color: #1565c0; font-weight: bold;">Turnaround Chance (FTA%)</div>
+                            <div style="font-size: 17px; font-weight: bold; color: #0d47a1;">{item['fta_pct']}%</div>
+                            <div style="font-size: 10px; color: #1565c0; margin-top: 2px;">Hybrid Model</div>
                         </div>
                     </div>
                 </div>
