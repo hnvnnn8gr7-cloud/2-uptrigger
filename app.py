@@ -17,33 +17,90 @@ if "tracked_bets" not in st.session_state:
 
 
 # ---------------------------------------------------------
-# 2. OUTPLAYED-STYLE FTA% POISSON PROBABILITY MODEL
+# 2. HISTORICAL DATASET LOADING
 # ---------------------------------------------------------
-def calculate_poisson_fta(back_odds, total_goals_lambda=2.65, is_home=True):
-    """Calculates dynamic FTA% (Full-Time Analysis Payout Probability)
+@st.cache_data(ttl=3600)
+def load_historical_stats():
+    try:
+        df = pd.read_csv("2up_multi_league_dataset.csv")
+        df["clean_team"] = (
+            df["trigger_team"]
+            .astype(str)
+            .str.lower()
+            .str.replace(r"[^a-z0-9]", "", regex=True)
+        )
 
-    using implied match odds and Poisson goal distribution model.
-    """
+        stats = (
+            df.groupby("clean_team")
+            .agg(
+                total_2ups=("2up_triggered", "sum"),
+                total_comebacks=("comeback_occurred", "sum"),
+            )
+            .reset_index()
+        )
+
+        def calc_pct(row):
+            if row["total_2ups"] < 3:
+                return None
+            return row["total_comebacks"] / row["total_2ups"]
+
+        stats["turnaround_pct"] = stats.apply(calc_pct, axis=1)
+        return dict(zip(stats["clean_team"], stats["turnaround_pct"]))
+    except Exception:
+        return {}
+
+
+stats_dict = load_historical_stats()
+
+
+def get_historical_turnaround(team_name):
+    clean = (
+        pd.Series([team_name])
+        .str.lower()
+        .str.replace(r"[^a-z0-9]", "", regex=True)
+        .iloc[0]
+    )
+    return stats_dict.get(clean, None)
+
+
+# ---------------------------------------------------------
+# 3. HYBRID FTA% MODEL (POISSON + HISTORICAL)
+# ---------------------------------------------------------
+def calculate_hybrid_fta(
+    team_name, back_odds, total_goals_lambda=2.65, is_home=True
+):
+    """Combines live Poisson implied goal probabilities with historical 2UP turnaround data."""
     if not back_odds or back_odds <= 1.0:
-        return 1.50  # Baseline fallback FTA%
+        return 1.80
 
-    # Implied win probability from bookie odds
+    # Step A: Compute Poisson Probability
     implied_win_prob = 1.0 / back_odds
-
-    # Expected team goals based on implied probability and average match total
-    home_bias = 1.15 if is_home else 0.88
+    home_bias = 1.10 if is_home else 0.90
     team_exp_goals = max(
         0.4, (implied_win_prob * total_goals_lambda) * home_bias
     )
 
-    # Poisson probability of scoring 2+ goals in a match P(X >= 2)
     p0 = math.exp(-team_exp_goals)
     p1 = team_exp_goals * math.exp(-team_exp_goals)
     p_2plus_goals = 1.0 - (p0 + p1)
 
-    # FTA% adjustment for 2UP early payout probability
-    fta_pct = round(p_2plus_goals * implied_win_prob * 100, 2)
-    return max(0.50, min(fta_pct, 8.50))
+    poisson_fta = (p_2plus_goals * implied_win_prob) * 10
+    poisson_fta_scaled = max(0.80, min(poisson_fta, 3.20))
+
+    # Step B: Retrieve Historical Turnaround
+    hist_turnaround = get_historical_turnaround(team_name)
+
+    # Step C: Blend Poisson + Historical
+    if hist_turnaround is not None:
+        # Convert decimal rate to percentage (e.g. 0.15 -> 15.0% scale down to FTA scale)
+        hist_fta_scaled = max(0.80, min(hist_turnaround * 12.0, 3.50))
+        # 60% historical weighting + 40% Poisson weighting
+        blended_fta = (hist_fta_scaled * 0.60) + (poisson_fta_scaled * 0.40)
+    else:
+        # Use Poisson model as primary fallback for unlisted teams
+        blended_fta = poisson_fta_scaled
+
+    return round(blended_fta, 2)
 
 
 def parse_kickoff_datetime(iso_str):
@@ -62,7 +119,7 @@ def format_kickoff_time(dt):
 
 
 # ---------------------------------------------------------
-# 3. SIDEBAR CONTROLS & API KEY
+# 4. SIDEBAR CONTROLS & API KEY
 # ---------------------------------------------------------
 st.sidebar.title("⚙️ Outplayed 2UP Filters")
 
@@ -83,7 +140,7 @@ search_query = st.sidebar.text_input("Search Team or League", "")
 
 
 # ---------------------------------------------------------
-# 4. FETCH LIVE ODDS (H2H MATCH WINNER)
+# 5. FETCH LIVE ODDS
 # ---------------------------------------------------------
 @st.cache_data(ttl=300)
 def fetch_live_fixtures(api_key):
@@ -112,7 +169,6 @@ if raw_fixtures:
         commence_raw = match.get("commence_time", "")
         dt_kickoff = parse_kickoff_datetime(commence_raw)
 
-        # Filter out matches that already started
         if dt_kickoff and dt_kickoff <= now_utc:
             continue
 
@@ -154,18 +210,17 @@ if raw_fixtures:
                                     back_odds = price
                                     bookie_name = b_title
 
-            # Lay odds fallback estimation if exchange unlisted
             if back_odds and not lay_odds:
                 lay_odds = round(back_odds * 1.02, 2)
                 exchange_name = "Betfair Ex"
 
             if back_odds and lay_odds:
                 is_home_bool = side == "Home"
-                fta_pct = calculate_poisson_fta(
-                    back_odds, is_home=is_home_bool
+                fta_pct = calculate_hybrid_fta(
+                    team_name, back_odds, is_home=is_home_bool
                 )
 
-                # Outplayed 100%+ EV Formula: (Back Odds / Lay Odds * (1 + FTA%))
+                # Outplayed EV Formula
                 ev_pct = round(
                     ((back_odds / lay_odds) + (fta_pct / 100)) * 100, 1
                 )
@@ -186,11 +241,10 @@ if raw_fixtures:
                     }
                 )
 
-# Sort fixtures by highest EV% first
 cards_data = sorted(cards_data, key=lambda x: x["ev_pct"], reverse=True)
 
 # ---------------------------------------------------------
-# 5. DASHBOARD LAYOUT (OUTPLAYED MASTER CARDS STYLE)
+# 6. DASHBOARD LAYOUT (OUTPLAYED CARDS)
 # ---------------------------------------------------------
 tab1, tab2 = st.tabs(["⚡ Outplayed 2UP Master", "📊 Performance Tracker"])
 
@@ -219,7 +273,6 @@ with tab1:
             st.info("No fixtures matched your selected filters.")
         else:
             for item in filtered_cards:
-                # Custom CSS Card Container mirroring Outplayed layout
                 st.markdown(
                     f"""
                 <div style="border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px; margin-bottom: 16px; background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
@@ -245,7 +298,7 @@ with tab1:
                         <div style="flex: 1; background: #f5f5f5; padding: 8px 12px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 11px; color: #666;">FTA%</div>
                             <div style="font-size: 16px; font-weight: bold; color: #00b0ff;">{item['fta_pct']}%</div>
-                            <div style="font-size: 10px; color: #444; margin-top: 2px;">Payout Prob</div>
+                            <div style="font-size: 10px; color: #444; margin-top: 2px;">Hybrid Prob</div>
                         </div>
                     </div>
                 </div>
