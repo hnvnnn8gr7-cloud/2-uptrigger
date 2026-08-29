@@ -10,18 +10,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Custom Styling to mimic a native iPhone app
 st.markdown(
     """
     <style>
     .stApp { padding-top: 1rem; }
-    .metric-card {
-        background-color: #1E293B;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #334155;
-        margin-bottom: 10px;
-    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -52,10 +44,8 @@ def load_historical_ratings():
     try:
         df = pd.read_csv("2up_multi_league_dataset.csv")
 
-        # Filter only matches where 2UP triggered
         triggered_df = df[df["2up_triggered"] == True].copy()
 
-        # Group by trigger_team to find total 2UPs and comebacks conceded/made
         stats = (
             triggered_df.groupby("trigger_team")
             .agg(
@@ -66,8 +56,6 @@ def load_historical_ratings():
         )
 
         stats["turnaround_pct"] = (stats["comebacks"] / stats["total_2ups"]) * 100
-
-        # Global average fallback
         global_avg = (
             triggered_df["comeback_occurred"].mean() * 100
             if len(triggered_df) > 0
@@ -75,8 +63,7 @@ def load_historical_ratings():
         )
 
         return stats, round(global_avg, 1)
-    except Exception as e:
-        # Fallback if CSV is not found in GitHub repo yet
+    except Exception:
         return pd.DataFrame(), 12.5
 
 
@@ -84,32 +71,25 @@ stats_df, GLOBAL_AVG = load_historical_ratings()
 
 
 def get_turnaround_pct(team_name: str) -> tuple[float, int]:
-    """Returns (turnaround_pct, total_2ups) for a team."""
     if not stats_df.empty and team_name in stats_df["trigger_team"].values:
         row = stats_df[stats_df["trigger_team"] == team_name].iloc[0]
         return round(row["turnaround_pct"], 1), int(row["total_2ups"])
     return GLOBAL_AVG, 0
 
 
-# --- STEP 2: QUALIFYING LOSS (QL) CALCULATOR ---
 def calculate_matched_bet(back_stake: float, back_odds: float, lay_odds: float):
     if lay_odds <= COMMISSION:
         return 0.0, 0.0
 
-    # Calculate optimal lay stake
     lay_stake = (back_stake * back_odds) / (lay_odds - COMMISSION)
-
-    # Calculate Qualifying Loss
     ql = back_stake - (lay_stake * (1.0 - COMMISSION))
     return round(lay_stake, 2), round(ql, 2)
 
 
-# --- STEP 3: FETCH LIVE ODDS ---
+# --- STEP 2: FULLY FUNCTIONAL ODDS PARSER ---
 def fetch_odds():
     if not API_KEY:
-        st.warning(
-            "⚠️ Enter your API Key in the sidebar to load live odds. Showing mock data below:"
-        )
+        st.warning("⚠️ Enter your API Key in the sidebar to load live odds.")
         return [
             {
                 "home": "Leeds",
@@ -127,28 +107,83 @@ def fetch_odds():
                 "back_odds": 3.75,
                 "lay_odds": 3.86,
             },
-            {
-                "home": "Plymouth",
-                "away": "Ipswich",
-                "league": "EFL Championship",
-                "selection": "Ipswich",
-                "back_odds": 1.95,
-                "lay_odds": 1.98,
-            },
         ]
 
-    url = f"https://api.the-odds-api.com/v4/sports/soccer_epl/odds/?apiKey={API_KEY}&regions=uk&markets=h2h&bookmakers=bet365,smarkets,betfair_ex"
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        matches = []
-        return matches
-    except Exception as e:
-        st.error(f"Error fetching odds: {e}")
-        return []
+    # Target specific volatile soccer leagues supported by The-Odds-API
+    sports_keys = [
+        "soccer_epl",
+        "soccer_efl_champ",
+        "soccer_germany_bundesliga",
+        "soccer_netherlands_eredivisie",
+    ]
+    matches = []
+
+    for sport in sports_keys:
+        url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds/?apiKey={API_KEY}&regions=uk&markets=h2h&bookmakers=bet365,smarkets,betfair_ex"
+        try:
+            res = requests.get(url, timeout=10)
+            if res.status_code != 200:
+                continue
+
+            data = res.json()
+            for game in data:
+                home = game.get("home_team")
+                away = game.get("away_team")
+                league = game.get("sport_title", "Football")
+
+                back_bookie = None
+                lay_bookie = None
+
+                # Find Bet365 for back odds and Smarkets/Betfair for lay odds
+                for b in game.get("bookmakers", []):
+                    if b["key"] == "bet365":
+                        back_bookie = b
+                    elif b["key"] in ["smarkets", "betfair_ex"]:
+                        lay_bookie = b
+
+                if back_bookie and lay_bookie:
+                    # Extract H2H odds
+                    back_outcomes = back_bookie["markets"][0]["outcomes"]
+                    lay_outcomes = lay_bookie["markets"][0]["outcomes"]
+
+                    for back_item in back_outcomes:
+                        team = back_item["name"]
+                        if team == "Draw":
+                            continue
+
+                        back_price = back_item["price"]
+                        lay_price = next(
+                            (
+                                l["price"]
+                                for l in lay_outcomes
+                                if l["name"] == team
+                            ),
+                            None,
+                        )
+
+                        if back_price and lay_price:
+                            matches.append(
+                                {
+                                    "home": home,
+                                    "away": away,
+                                    "league": league,
+                                    "selection": team,
+                                    "back_odds": float(back_price),
+                                    "lay_odds": float(lay_price),
+                                }
+                            )
+        except Exception as e:
+            st.error(f"API Fetch error on {sport}: {e}")
+
+    if not matches:
+        st.info(
+            "No active matches with both Bet365 and Exchange odds available right now. Check back closer to matchday!"
+        )
+
+    return matches
 
 
-# --- STEP 4: RENDER MOBILE DASHBOARD ---
+# --- STEP 3: DASHBOARD DISPLAY ---
 matches = fetch_odds()
 
 tab1, tab2 = st.tabs(["🔥 Today's Matches", "🧮 2UP Stake Calculator"])
@@ -163,7 +198,6 @@ with tab1:
             DEFAULT_STAKE, m["back_odds"], m["lay_odds"]
         )
 
-        # Rating Logic
         ql_pct = (abs(ql) / DEFAULT_STAKE) * 100
         if turnaround_pct >= 14.0 and ql_pct <= 1.5:
             rating = "🟢 EXCELLENT EV"
@@ -172,7 +206,6 @@ with tab1:
         else:
             rating = "⚪ POOR EV"
 
-        # Display Card
         with st.container():
             st.markdown(f"### {m['home']} vs {m['away']}")
             st.caption(f"**{m['league']}** | Selection: **{team}** ({rating})")
