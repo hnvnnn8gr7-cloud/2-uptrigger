@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 import math
-import io
 import pandas as pd
 import requests
 import streamlit as st
@@ -9,7 +8,7 @@ st.set_page_config(
     page_title="2UP Master Finder & Tracker", page_icon="⚽", layout="wide"
 )
 
-# Recognized 2UP Bookies & Lay Exchanges mapping (Key -> Display Name)
+# Recognized 2UP Bookies & Lay Exchanges mapping
 BOOKMAKER_MAP = {
     "All": "All 2UP Bookies",
     "bet365": "Bet365",
@@ -18,12 +17,12 @@ BOOKMAKER_MAP = {
     "boylesports": "BoyleSports",
     "ladbrokes": "Ladbrokes",
     "coral": "Coral",
-    "betfair_sb_uk": "Betfair Sportsbook",
+    "betfair": "Betfair Sportsbook",
 }
 
 EXCHANGE_MAP = {
-    "All": "All Exchanges",
-    "betfair_ex_uk": "Betfair Exchange",
+    "All": "Any Exchange (Lowest Lay)",
+    "betfair_ex": "Betfair Exchange",
     "smarkets": "Smarkets",
     "matchbook": "Matchbook",
 }
@@ -145,7 +144,6 @@ api_key_input = st.sidebar.text_input(
 
 st.sidebar.divider()
 
-# Bookie & Exchange Selection Dropdowns
 selected_bookie_key = st.sidebar.selectbox(
     "Select 2UP Bookmaker",
     options=list(BOOKMAKER_MAP.keys()),
@@ -159,7 +157,7 @@ selected_exchange_key = st.sidebar.selectbox(
 )
 
 min_ev_filter = st.sidebar.slider(
-    "Minimum EV % (Base 100%)", 90.0, 115.0, 98.0, 0.5
+    "Minimum EV % (Base 100%)", 85.0, 115.0, 95.0, 0.5
 )
 search_query = st.sidebar.text_input("Search Team or League", "")
 
@@ -212,59 +210,65 @@ if raw_fixtures:
             back_odds = None
             lay_odds = None
             bookie_name = None
-            exchange_name = "Exchange"
+            exchange_name = None
 
             for b in bookies:
                 b_key = b.get("key", "").lower()
                 b_title = b.get("title", "")
 
-                # Exchange logic
-                is_exchange = any(
+                # Check exchange match
+                is_ex = any(
                     ex in b_key for ex in ["ex", "smarkets", "matchbook"]
                 )
                 if selected_exchange_key != "All":
-                    is_target_exchange = selected_exchange_key in b_key
+                    is_target_ex = selected_exchange_key in b_key
                 else:
-                    is_target_exchange = is_exchange
+                    is_target_ex = is_ex
 
-                # Bookie logic
+                # Check bookie match
                 if selected_bookie_key != "All":
-                    is_target_bookie = selected_bookie_key in b_key
+                    is_target_bk = selected_bookie_key in b_key
                 else:
-                    is_target_bookie = any(
-                        bk in b_key for bk in BOOKMAKER_MAP.keys() if bk != "All"
-                    )
+                    is_target_bk = not is_ex
 
                 for m in b.get("markets", []):
                     if m["key"] == "h2h":
                         for outcome in m.get("outcomes", []):
                             if outcome["name"] == team_name:
                                 price = outcome["price"]
-                                if (
-                                    is_exchange
-                                    and is_target_exchange
-                                    and (lay_odds is None or price < lay_odds)
+                                if is_target_ex and (
+                                    lay_odds is None or price < lay_odds
                                 ):
                                     lay_odds = price
                                     exchange_name = b_title
-                                elif (
-                                    not is_exchange
-                                    and is_target_bookie
-                                    and (
-                                        back_odds is None or price > back_odds
-                                    )
+                                elif is_target_bk and (
+                                    back_odds is None or price > back_odds
                                 ):
                                     back_odds = price
                                     bookie_name = b_title
 
-            if not bookie_name or not back_odds:
-                continue
+            # Fallbacks so listings don't disappear if specific exchange missing
+            if not bookie_name:
+                # Fallback to first available bookie price if strict matching failed
+                for b in bookies:
+                    if not any(
+                        ex in b.get("key", "").lower()
+                        for ex in ["ex", "smarkets", "matchbook"]
+                    ):
+                        for m in b.get("markets", []):
+                            for outcome in m.get("outcomes", []):
+                                if (
+                                    outcome["name"] == team_name
+                                    and not back_odds
+                                ):
+                                    back_odds = outcome["price"]
+                                    bookie_name = b.get("title", "Bookmaker")
 
-            if back_odds and not lay_odds:
-                lay_odds = round(back_odds * 1.02, 2)
-                exchange_name = "Betfair Ex"
+            if back_odds:
+                if not lay_odds:
+                    lay_odds = round(back_odds * 1.02, 2)
+                    exchange_name = "Exchange (Estimated)"
 
-            if back_odds and lay_odds:
                 is_home_bool = side == "Home"
                 fta_pct = calculate_hybrid_fta(
                     team_name, back_odds, is_home=is_home_bool
@@ -284,31 +288,33 @@ if raw_fixtures:
                         "back_odds": back_odds,
                         "lay_odds": lay_odds,
                         "bookie": bookie_name,
-                        "exchange": exchange_name,
+                        "exchange": exchange_name or "Exchange",
                         "fta_pct": fta_pct,
                         "ev_pct": ev_pct,
                     }
                 )
 
-# SORT BY HIGHEST CHANCE OF TURNAROUND (FTA%) FIRST, THEN BY EV%
+# Sort by Turnaround Chance (FTA%) descending first, then EV%
 cards_data = sorted(
     cards_data, key=lambda x: (x["fta_pct"], x["ev_pct"]), reverse=True
 )
 
 # ---------------------------------------------------------
-# 6. DASHBOARD LAYOUT (OUTPLAYED CARDS)
+# 6. DASHBOARD LAYOUT
 # ---------------------------------------------------------
 tab1, tab2 = st.tabs(["⚡ Outplayed 2UP Master", "📊 Performance Tracker"])
 
 with tab1:
-    st.title("2UP Opportunities (Highest Turnaround Chance First)")
+    st.title("2UP Opportunities (Next 24 Hours)")
 
     if not api_key_input:
         st.warning(
             "⚠️ Please enter your Odds API Key in the sidebar or setup Secrets."
         )
     elif not cards_data:
-        st.info("No matching 2UP opportunities found for your selected filters.")
+        st.info(
+            "No matching 2UP opportunities found within the next 24 hours. Try adjusting your sidebar filters or lowering the Minimum EV % slider."
+        )
     else:
         filtered_cards = [
             c
@@ -322,7 +328,9 @@ with tab1:
         ]
 
         if not filtered_cards:
-            st.info("No fixtures matched your selected filters.")
+            st.info(
+                "No fixtures matched your filters. Lower your **Minimum EV %** slider in the sidebar."
+            )
         else:
             for item in filtered_cards:
                 st.markdown(
