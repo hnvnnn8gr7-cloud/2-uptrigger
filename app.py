@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import math
+import sqlite3
 import pandas as pd
 import requests
 import streamlit as st
@@ -7,6 +8,38 @@ import streamlit as st
 st.set_page_config(
     page_title="2UP Master Finder & Tracker", page_icon="⚽", layout="wide"
 )
+
+# ---------------------------------------------------------
+# DATABASE
+# ---------------------------------------------------------
+
+DB_NAME = "two_up.db"
+
+
+def get_db():
+
+    conn = sqlite3.connect(
+        DB_NAME,
+        check_same_thread=False
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tracked_bets (
+            id TEXT PRIMARY KEY,
+            match TEXT,
+            team TEXT,
+            kickoff TEXT,
+            back_odds REAL,
+            lay_odds REAL,
+            ev_status TEXT,
+            result TEXT
+        )
+        """
+    )
+
+    return conn
+
 
 # Recognized 2UP Bookies & Lay Exchanges mapping
 BOOKMAKER_MAP = {
@@ -32,6 +65,9 @@ EXCHANGE_MAP = {
 # ---------------------------------------------------------
 if "tracked_bets" not in st.session_state:
     st.session_state["tracked_bets"] = []
+
+if "previous_odds" not in st.session_state:
+    st.session_state["previous_odds"] = {}
 
 
 # ---------------------------------------------------------
@@ -84,6 +120,35 @@ def get_historical_turnaround(team_name):
 # ---------------------------------------------------------
 # 3. HYBRID FTA% MODEL
 # ---------------------------------------------------------
+def calculate_ev(
+    back_odds,
+    lay_odds,
+    fta_pct,
+    stake=100
+):
+
+    qualifying_loss = abs(
+        stake
+        - ((back_odds * stake) / lay_odds)
+    )
+
+    turnaround_profit = (
+        stake * (back_odds - 1)
+    )
+
+    expected_profit = (
+        turnaround_profit
+        * (fta_pct / 100)
+    ) - qualifying_loss
+
+    ev = (
+        100
+        + ((expected_profit / stake) * 100)
+    )
+
+    return round(ev, 1)
+
+
 def calculate_hybrid_fta(
     team_name, back_odds, total_goals_lambda=2.65, is_home=True
 ):
