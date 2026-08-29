@@ -5,18 +5,18 @@ import requests
 import streamlit as st
 
 st.set_page_config(
-    page_title="2UP Value Finder & Tracker", page_icon="⚽", layout="wide"
+    page_title="2UP Master Finder & Tracker", page_icon="⚽", layout="wide"
 )
 
 # ---------------------------------------------------------
-# 1. INITIALIZE TRACKER SESSION STATE
+# 1. SESSION STATE INITIALIZATION
 # ---------------------------------------------------------
 if "tracked_bets" not in st.session_state:
     st.session_state["tracked_bets"] = []
 
 
 # ---------------------------------------------------------
-# 2. LOAD & PROCESS CSV STATS
+# 2. LOAD HISTORICAL DATASET
 # ---------------------------------------------------------
 @st.cache_data(ttl=3600)
 def load_historical_stats():
@@ -62,167 +62,283 @@ def get_turnaround(team_name):
     return stats_dict.get(clean, 0.125)
 
 
-# Helper function to format ISO 8601 UTC time to a readable Kick-Off string
 def format_kickoff_time(iso_str):
     if not iso_str:
         return "TBD"
     try:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-        return dt.strftime("%a %d %b, %H:%M")
+        return dt.strftime("%a %d %b %H:%M")
     except Exception:
         return iso_str
 
 
 # ---------------------------------------------------------
-# 3. FETCH LIVE ODDS FROM THE-ODDS-API
+# 3. SIDEBAR CONTROLS & API KEY
 # ---------------------------------------------------------
-API_KEY = st.secrets.get("ODDS_API_KEY", "")
+st.sidebar.title("⚙️ 2UP Master Filters")
+
+secret_api_key = st.secrets.get("ODDS_API_KEY", "")
+api_key_input = st.sidebar.text_input(
+    "The-Odds-API Key",
+    value=secret_api_key,
+    type="password",
+    help="Enter your API key here if not set in Streamlit Secrets.",
+)
+
+st.sidebar.divider()
+
+selected_statuses = st.sidebar.multiselect(
+    "Filter Rating",
+    ["🟢 EXCELLENT", "🟡 GOOD", "⚪ STANDARD"],
+    default=["🟢 EXCELLENT", "🟡 GOOD", "⚪ STANDARD"],
+)
+
+min_ev_filter = st.sidebar.slider("Minimum EV %", -5.0, 30.0, 0.0, 0.5)
+search_query = st.sidebar.text_input("Search Team or League", "")
 
 
+# ---------------------------------------------------------
+# 4. FETCH AND PROCESS 2UP MATCH DATA
+# ---------------------------------------------------------
 @st.cache_data(ttl=300)
-def fetch_live_fixtures():
-    if not API_KEY:
-        st.warning("⚠️ No ODDS_API_KEY set in secrets.")
+def fetch_live_fixtures(api_key):
+    if not api_key:
         return []
 
-    url = f"https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey={API_KEY}&regions=uk&markets=h2h&oddsFormat=decimal"
+    url = f"https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey={api_key}&regions=uk&markets=h2h&oddsFormat=decimal"
     try:
         res = requests.get(url, timeout=10)
         if res.status_code == 200:
             return res.json()
+        elif res.status_code == 401:
+            st.error("⚠️ Invalid API Key.")
     except Exception as e:
         st.error(f"Error fetching odds: {e}")
     return []
 
 
+raw_fixtures = fetch_live_fixtures(api_key_input)
+table_rows = []
+
+if raw_fixtures:
+    for match in raw_fixtures:
+        home_team = match.get("home_team", "Unknown")
+        away_team = match.get("away_team", "Unknown")
+        league = match.get("sport_title", "Soccer")
+        commence_raw = match.get("commence_time", "")
+        kickoff_fmt = format_kickoff_time(commence_raw)
+
+        bookies = match.get("bookmakers", [])
+        if not bookies:
+            continue
+
+        for side, team_name in [("Home", home_team), ("Away", away_team)]:
+            back_odds = None
+            lay_odds = None
+
+            for b in bookies:
+                is_exchange = b.get("key") in [
+                    "betfair_ex_uk",
+                    "smarkets",
+                    "matchbook",
+                ]
+                for m in b.get("markets", []):
+                    if m["key"] == "h2h":
+                        for outcome in m.get("outcomes", []):
+                            if outcome["name"] == team_name:
+                                price = outcome["price"]
+                                if is_exchange and (
+                                    lay_odds is None or price < lay_odds
+                                ):
+                                    lay_odds = price
+                                elif not is_exchange and (
+                                    back_odds is None or price > back_odds
+                                ):
+                                    back_odds = price
+
+            if back_odds and not lay_odds:
+                lay_odds = round(back_odds * 1.02, 2)
+
+            if back_odds and lay_odds:
+                turnaround = get_turnaround(team_name)
+
+                # Qualifying Loss Percentage
+                ql_pct = ((lay_odds - back_odds) / back_odds) * 100
+
+                # Expected Value %
+                ev_val = (
+                    (turnaround * back_odds) / (1 + (ql_pct / 100))
+                ) - 1
+                ev_pct = round(ev_val * 100, 1)
+
+                if ev_pct >= 15.0:
+                    badge_type = "🟢 EXCELLENT"
+                elif ev_pct >= 5.0:
+                    badge_type = "🟡 GOOD"
+                else:
+                    badge_type = "⚪ STANDARD"
+
+                table_rows.append(
+                    {
+                        "Track": False,
+                        "id": f"{home_team}_vs_{away_team}_{side.lower()}",
+                        "Rating": badge_type,
+                        "Kickoff": kickoff_fmt,
+                        "Match": f"{home_team} vs {away_team}",
+                        "Selection": f"{team_name} ({side[0]})",
+                        "League": league,
+                        "Back Odds": back_odds,
+                        "Lay Odds": lay_odds,
+                        "QL %": f"{round(ql_pct, 1)}%",
+                        "Turnaround %": f"{round(turnaround * 100, 1)}%",
+                        "EV %": ev_pct,
+                    }
+                )
+
 # ---------------------------------------------------------
-# 4. PROCESS MATCH DATA & CALCULATE EV %
+# 5. DASHBOARD LAYOUT (OUTPLAYED MASTER STYLE)
 # ---------------------------------------------------------
-raw_fixtures = fetch_live_fixtures()
-processed_matches = []
-
-QUALIFYING_LOSS_PCT = 0.015  # Default 1.5% QL benchmark
-
-for match in raw_fixtures:
-    home_team = match.get("home_team", "Unknown")
-    away_team = match.get("away_team", "Unknown")
-    league = match.get("sport_title", "Soccer")
-    commence_raw = match.get("commence_time", "")
-    kickoff_fmt = format_kickoff_time(commence_raw)
-
-    bookies = match.get("bookmakers", [])
-    if not bookies:
-        continue
-
-    home_back = None
-    for b in bookies:
-        for m in b.get("markets", []):
-            if m["key"] == "h2h":
-                for outcome in m.get("outcomes", []):
-                    if outcome["name"] == home_team:
-                        home_back = outcome["price"]
-
-    if home_back:
-        home_turnaround = get_turnaround(home_team)
-
-        # Exact EV % Calculation
-        ev_val = (
-            (home_turnaround * home_back) / (1 + QUALIFYING_LOSS_PCT)
-        ) - 1
-        ev_pct = round(ev_val * 100, 1)
-
-        # Format Status with EV Percentage Label
-        if ev_pct >= 15.0:
-            status = f"🟢 EXCELLENT (+{ev_pct}%)"
-            badge_type = "🟢 EXCELLENT"
-        elif ev_pct >= 5.0:
-            status = f"🟡 GOOD (+{ev_pct}%)"
-            badge_type = "🟡 GOOD"
-        else:
-            status = f"⚪ STANDARD ({'+' if ev_pct >= 0 else ''}{ev_pct}%)"
-            badge_type = "⚪ STANDARD"
-
-        processed_matches.append(
-            {
-                "id": f"{home_team}_vs_{away_team}_home",
-                "match": f"{home_team} vs {away_team}",
-                "team": home_team,
-                "league": league,
-                "kickoff": kickoff_fmt,
-                "back_odds": home_back,
-                "turnaround_pct": round(home_turnaround * 100, 1),
-                "ev_pct": ev_pct,
-                "ev_status": status,
-                "badge_type": badge_type,
-            }
-        )
-
-# ---------------------------------------------------------
-# 5. SIDEBAR FILTERS
-# ---------------------------------------------------------
-st.sidebar.title("🔍 Match Filters")
-
-selected_statuses = st.sidebar.multiselect(
-    "Filter by EV Status",
-    ["🟢 EXCELLENT", "🟡 GOOD", "⚪ STANDARD"],
-    default=["🟢 EXCELLENT", "🟡 GOOD", "⚪ STANDARD"],
-)
-
-search_query = st.sidebar.text_input("Search Team / League", "")
-
-# ---------------------------------------------------------
-# 6. APP TABS: FIXTURES vs TRACKER
-# ---------------------------------------------------------
-tab1, tab2 = st.tabs(["⚽ Live Fixtures", "📊 Performance Tracker"])
+tab1, tab2 = st.tabs(["⚡ 2UP Master Odds", "📊 Performance Tracker"])
 
 with tab1:
-    st.header("Live 2UP EV Opportunities")
+    st.title("2UP Master Opportunities")
 
-    filtered_matches = [
-        m
-        for m in processed_matches
-        if m["badge_type"] in selected_statuses
-        and (
-            search_query.lower() in m["match"].lower()
-            or search_query.lower() in m["league"].lower()
+    if not api_key_input:
+        st.warning(
+            "⚠️ Please enter your Odds API Key in the sidebar or setup Secrets to load match odds."
         )
-    ]
-
-    if not filtered_matches:
-        st.info("No matches found matching your filters.")
+    elif not table_rows:
+        st.info("No 2UP opportunities found.")
     else:
-        for m in filtered_matches:
-            col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 3, 2])
-            with col1:
-                st.write(f"**{m['match']}**")
-                st.caption(f"🗓️ {m['kickoff']} | {m['league']}")
-            with col2:
-                st.write(f"Team: **{m['team']}**")
-                st.caption(f"Odds: {m['back_odds']}")
-            with col3:
-                st.write(f"Turnaround: **{m['turnaround_pct']}%**")
-            with col4:
-                st.write(f"**{m['ev_status']}**")
-            with col5:
-                already_tracked = any(
-                    t["id"] == m["id"] for t in st.session_state["tracked_bets"]
-                )
-                if already_tracked:
-                    st.button("Tracked ✓", key=f"btn_{m['id']}", disabled=True)
-                else:
-                    if st.button("Track Bet 📌", key=f"btn_{m['id']}"):
-                        st.session_state["tracked_bets"].append(
-                            {
-                                "id": m["id"],
-                                "match": m["match"],
-                                "team": m["team"],
-                                "kickoff": m["kickoff"],
-                                "status": m["ev_status"],
-                                "result": "Pending ⏳",
-                            }
+        # Dataframe conversion and filtering
+        df_master = pd.DataFrame(table_rows)
+
+        # Apply user filters
+        filtered_df = df_master[
+            (df_master["Rating"].isin(selected_statuses))
+            & (df_master["EV %"] >= min_ev_filter)
+            & (
+                df_master["Match"].str.contains(search_query, case=False)
+                | df_master["League"].str.contains(search_query, case=False)
+                | df_master["Selection"].str.contains(search_query, case=False)
+            )
+        ]
+
+        # Top summary metrics bar
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Available Fixtures", len(filtered_df))
+        c2.metric(
+            "Excellent Matches",
+            len(filtered_df[filtered_df["Rating"] == "🟢 EXCELLENT"]),
+        )
+        c3.metric(
+            "Avg EV %",
+            (
+                f"{round(filtered_df['EV %'].mean(), 1)}%"
+                if not filtered_df.empty
+                else "0.0%"
+            ),
+        )
+        c4.metric(
+            "Max EV %",
+            (
+                f"+{filtered_df['EV %'].max()}%"
+                if not filtered_df.empty
+                else "0.0%"
+            ),
+        )
+
+        st.divider()
+
+        if filtered_df.empty:
+            st.info("No fixtures matched your selected filters.")
+        else:
+            # Render styled interactive Outplayed-style master table
+            edited_df = st.data_editor(
+                filtered_df,
+                column_config={
+                    "Track": st.column_config.CheckboxColumn(
+                        "Track Bet",
+                        help="Check to log bet to tracker",
+                        default=False,
+                    ),
+                    "id": None,  # Hide internal ID
+                    "Rating": st.column_config.TextColumn(
+                        "Rating", width="medium"
+                    ),
+                    "Kickoff": st.column_config.TextColumn(
+                        "Kickoff", width="small"
+                    ),
+                    "Match": st.column_config.TextColumn(
+                        "Fixture", width="medium"
+                    ),
+                    "Selection": st.column_config.TextColumn(
+                        "Selection", width="medium"
+                    ),
+                    "League": st.column_config.TextColumn(
+                        "League", width="medium"
+                    ),
+                    "Back Odds": st.column_config.NumberColumn(
+                        "Back Odds", format="%.2f"
+                    ),
+                    "Lay Odds": st.column_config.NumberColumn(
+                        "Lay Odds", format="%.2f"
+                    ),
+                    "QL %": st.column_config.TextColumn("QL %"),
+                    "Turnaround %": st.column_config.TextColumn("Turnaround"),
+                    "EV %": st.column_config.NumberColumn(
+                        "EV %", format="+%.1f%%"
+                    ),
+                },
+                disabled=[
+                    "id",
+                    "Rating",
+                    "Kickoff",
+                    "Match",
+                    "Selection",
+                    "League",
+                    "Back Odds",
+                    "Lay Odds",
+                    "QL %",
+                    "Turnaround %",
+                    "EV %",
+                ],
+                hide_index=True,
+                use_container_width=True,
+            )
+
+            # Process tracked items checked in the grid table
+            if st.button("📌 Save Checked Bets to Tracker"):
+                new_tracked_count = 0
+                for _, row in edited_df.iterrows():
+                    if row["Track"]:
+                        already_exists = any(
+                            t["id"] == row["id"]
+                            for t in st.session_state["tracked_bets"]
                         )
-                        st.rerun()
-            st.divider()
+                        if not already_exists:
+                            st.session_state["tracked_bets"].append(
+                                {
+                                    "id": row["id"],
+                                    "match": row["Match"],
+                                    "team": row["Selection"],
+                                    "kickoff": row["Kickoff"],
+                                    "back_odds": row["Back Odds"],
+                                    "lay_odds": row["Lay Odds"],
+                                    "ev_status": f"{row['Rating']} (+{row['EV %']}%)",
+                                    "result": "Pending ⏳",
+                                }
+                            )
+                            new_tracked_count += 1
+                if new_tracked_count > 0:
+                    st.success(
+                        f"Added {new_tracked_count} new bet(s) to Tracker!"
+                    )
+                    st.rerun()
+                else:
+                    st.info(
+                        "No new bets checked or selected bets were already tracked."
+                    )
 
 with tab2:
     st.header("Tracked Performance Dashboard")
@@ -230,7 +346,7 @@ with tab2:
     tracked = st.session_state["tracked_bets"]
     if not tracked:
         st.info(
-            "No bets tracked yet. Click **Track Bet 📌** on live fixtures to add them here."
+            "No bets tracked yet. Check **Track Bet** in the master table and click Save."
         )
     else:
         total_bets = len(tracked)
@@ -251,19 +367,17 @@ with tab2:
             with c1:
                 st.write(f"**{item['match']}**")
                 st.caption(
-                    f"Selected: {item['team']} | 🗓️ {item.get('kickoff', 'TBD')}"
+                    f"Selected: {item['team']} | Back: {item.get('back_odds', 'N/A')} | Lay: {item.get('lay_odds', 'N/A')}"
                 )
             with c2:
-                st.write(f"**{item['status']}**")
+                st.write(f"**{item.get('ev_status', '')}**")
             with c3:
                 new_res = st.selectbox(
                     "Set Outcome",
                     ["Pending ⏳", "Won 🟢", "Lost 🔴"],
-                    index=[
-                        "Pending ⏳",
-                        "Won 🟢",
-                        "Lost 🔴",
-                    ].index(item["result"]),
+                    index=["Pending ⏳", "Won 🟢", "Lost 🔴"].index(
+                        item["result"]
+                    ),
                     key=f"res_{item['id']}",
                 )
                 st.session_state["tracked_bets"][idx]["result"] = new_res
