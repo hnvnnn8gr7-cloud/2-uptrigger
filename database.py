@@ -151,6 +151,14 @@ def create_tables():
     )
     """)
 
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS processed_fixtures (
+        fixture_id TEXT PRIMARY KEY,
+
+        processed_at TEXT
+    )
+    """)
+
     conn.commit()
     conn.close()
 
