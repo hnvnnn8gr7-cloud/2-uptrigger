@@ -19,8 +19,8 @@ def calculate_hybrid_fta(
     p0 = math.exp(-exp_goals)
 
     p1 = (
-        exp_goals
-        * math.exp(-exp_goals)
+        exp_goals *
+        math.exp(-exp_goals)
     )
 
     p2plus = 1 - (p0 + p1)
@@ -46,16 +46,14 @@ def calculate_lay_stake(
     commission
 ):
 
-    commission_rate = (
-        commission / 100
-    )
+    commission = commission / 100
 
     lay_stake = (
         back_odds *
         stake
     ) / (
         lay_odds -
-        commission_rate
+        commission
     )
 
     return round(
@@ -78,24 +76,42 @@ def calculate_qualifying_loss(
         commission
     )
 
-    back_loss = stake
+    back_win_profit = (
+        stake *
+        (
+            back_odds - 1
+        )
+    )
 
-    lay_profit = (
+    lay_liability = (
+        lay_stake *
+        (
+            lay_odds - 1
+        )
+    )
+
+    profit_if_back_wins = (
+        back_win_profit -
+        lay_liability
+    )
+
+    profit_if_lay_wins = (
         lay_stake *
         (
             1 -
             (
-                commission /
-                100
+                commission / 100
             )
         )
+    ) - stake
+
+    ql = min(
+        profit_if_back_wins,
+        profit_if_lay_wins
     )
 
     return round(
-        abs(
-            back_loss -
-            lay_profit
-        ),
+        abs(ql),
         2
     )
 
@@ -110,66 +126,6 @@ def calculate_turnaround_profit(
         (
             back_odds - 1
         ),
-        2
-    )
-
-
-def calculate_ev(
-    back_odds,
-    lay_odds,
-    fta_pct,
-    commission=2.0,
-    stake=100
-):
-
-    qualifying_loss = (
-        calculate_qualifying_loss(
-            stake,
-            back_odds,
-            lay_odds,
-            commission
-        )
-    )
-
-    turnaround_profit = (
-        calculate_turnaround_profit(
-            stake,
-            back_odds
-        )
-    )
-
-    exchange_commission = (
-        turnaround_profit *
-        (
-            commission /
-            100
-        )
-    )
-
-    expected_profit = (
-        (
-            turnaround_profit
-            -
-            exchange_commission
-        )
-        *
-        (
-            fta_pct / 100
-        )
-    ) - qualifying_loss
-
-    ev = (
-        100
-        +
-        (
-            expected_profit
-            /
-            stake
-        ) * 100
-    )
-
-    return round(
-        ev,
         2
     )
 
@@ -198,28 +154,53 @@ def calculate_expected_profit(
         )
     )
 
-    exchange_commission = (
-        turnaround_profit *
-        (
-            commission /
-            100
-        )
-    )
-
     expected_profit = (
         (
-            turnaround_profit
-            -
-            exchange_commission
+            turnaround_profit *
+            (
+                fta_pct / 100
+            )
         )
-        *
-        (
-            fta_pct / 100
-        )
-    ) - qualifying_loss
+        -
+        qualifying_loss
+    )
 
     return round(
         expected_profit,
+        2
+    )
+
+
+def calculate_ev(
+    back_odds,
+    lay_odds,
+    fta_pct,
+    commission=2.0,
+    stake=100
+):
+
+    expected_profit = (
+        calculate_expected_profit(
+            back_odds,
+            lay_odds,
+            fta_pct,
+            stake,
+            commission
+        )
+    )
+
+    ev = (
+        100
+        +
+        (
+            expected_profit
+            /
+            stake
+        ) * 100
+    )
+
+    return round(
+        ev,
         2
     )
 
@@ -232,15 +213,15 @@ def calculate_ranking_score(
 
     return round(
         (
-            ev_pct * 0.50
+            ev_pct * 0.5
         )
         +
         (
-            fta_pct * 10 * 0.30
+            fta_pct * 10 * 0.3
         )
         +
         (
-            xg_edge * 10 * 0.20
+            xg_edge * 10 * 0.2
         ),
         2
     )
@@ -254,10 +235,10 @@ def get_ev_color(
         return "#00c853"
 
     if ev >= 110:
-        return "#2962ff"
+        return "#00bfa5"
 
     if ev >= 105:
-        return "#00bfa5"
+        return "#2962ff"
 
     if ev >= 100:
         return "#fdd835"
