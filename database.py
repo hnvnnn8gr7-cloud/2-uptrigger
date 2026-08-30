@@ -515,6 +515,56 @@ def get_performance_stats():
     return stats
 
 
+def save_model_run(
+    model_name,
+    training_rows,
+    notes=""
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT INTO model_runs
+        (
+            model_name,
+            trained_at,
+            training_rows,
+            notes
+        )
+        VALUES
+        (
+            ?, datetime('now'), ?, ?
+        )
+        """,
+        (
+            model_name,
+            training_rows,
+            notes
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_model_runs():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM model_runs
+        ORDER BY trained_at DESC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
 if __name__ == "__main__":
 
     create_tables()
