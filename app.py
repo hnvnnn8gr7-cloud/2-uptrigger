@@ -1,6 +1,10 @@
+import os
+import subprocess
 import joblib
 import pandas as pd
 import streamlit as st
+
+from datetime import datetime
 
 from database import (
     create_tables,
@@ -12,6 +16,7 @@ from model import (
     calculate_ev
 )
 
+
 create_tables()
 
 st.set_page_config(
@@ -20,11 +25,80 @@ st.set_page_config(
     layout="wide"
 )
 
+MODEL_FILE = "fta_model.pkl"
+
 st.title(
     "⚡ 2UP Master Finder"
 )
 
-MODEL_FILE = "fta_model.pkl"
+# --------------------------
+# MODEL STATUS
+# --------------------------
+
+if os.path.exists(
+    MODEL_FILE
+):
+
+    modified = datetime.fromtimestamp(
+        os.path.getmtime(
+            MODEL_FILE
+        )
+    )
+
+    st.success(
+        f"Model last trained: {modified}"
+    )
+
+else:
+
+    st.warning(
+        "No trained model found."
+    )
+
+# --------------------------
+# RETRAIN BUTTON
+# --------------------------
+
+st.subheader(
+    "Model Controls"
+)
+
+if st.button(
+    "🔄 Retrain Model"
+):
+
+    with st.spinner(
+        "Retraining model..."
+    ):
+
+        result = subprocess.run(
+            [
+                "venv/bin/python",
+                "retrain_model.py"
+            ],
+            capture_output=True,
+            text=True
+        )
+
+        if result.stdout:
+
+            st.success(
+                "Training complete"
+            )
+
+            st.code(
+                result.stdout
+            )
+
+        if result.stderr:
+
+            st.error(
+                result.stderr
+            )
+
+# --------------------------
+# LOAD MODEL
+# --------------------------
 
 model = None
 
@@ -37,6 +111,22 @@ try:
 except:
 
     model = None
+
+# --------------------------
+# MODEL VERSION
+# --------------------------
+
+model_version = st.selectbox(
+    "Prediction Method",
+    [
+        "ML Model",
+        "Hybrid Model"
+    ]
+)
+
+# --------------------------
+# TEAM DATA
+# --------------------------
 
 conn = get_db()
 
@@ -72,7 +162,13 @@ stats = conn.execute(
 
         two_up_trigger_rate,
 
-        historical_turnaround_rate
+        historical_turnaround_rate,
+
+        historical_matches,
+
+        historical_two_up,
+
+        historical_comebacks
 
     FROM team_stats
 
@@ -85,22 +181,36 @@ stats = conn.execute(
 
 conn.close()
 
-back_odds = st.number_input(
-    "Back Odds",
-    min_value=1.01,
-    value=4.0
-)
+# --------------------------
+# USER INPUT
+# --------------------------
 
-lay_odds = st.number_input(
-    "Lay Odds",
-    min_value=1.01,
-    value=4.2
-)
+col1, col2 = st.columns(2)
+
+with col1:
+
+    back_odds = st.number_input(
+        "Back Odds",
+        min_value=1.01,
+        value=4.0
+    )
+
+with col2:
+
+    lay_odds = st.number_input(
+        "Lay Odds",
+        min_value=1.01,
+        value=4.2
+    )
 
 is_home = st.checkbox(
     "Home Team",
     value=True
 )
+
+# --------------------------
+# TEAM STATS
+# --------------------------
 
 if stats:
 
@@ -118,6 +228,18 @@ if stats:
         stats[6] or 0
     )
 
+    historical_matches = (
+        stats[7] or 0
+    )
+
+    historical_two_up = (
+        stats[8] or 0
+    )
+
+    historical_comebacks = (
+        stats[9] or 0
+    )
+
 else:
 
     avg_xg = 0
@@ -132,7 +254,21 @@ else:
 
     historical_turnaround_rate = 0
 
-if model:
+    historical_matches = 0
+
+    historical_two_up = 0
+
+    historical_comebacks = 0
+
+# --------------------------
+# FTA CALCULATION
+# --------------------------
+
+if (
+    model
+    and
+    model_version == "ML Model"
+):
 
     features = pd.DataFrame(
         [
@@ -146,6 +282,7 @@ if model:
                 turnaround_pct,
 
                 trigger_rate,
+
                 historical_turnaround_rate,
 
                 int(is_home),
@@ -175,6 +312,7 @@ if model:
             "turnaround_pct",
 
             "two_up_trigger_rate",
+
             "historical_turnaround_rate",
 
             "is_home",
@@ -195,19 +333,14 @@ if model:
         ]
     )
 
-    ml_probability = (
+    fta_pct = round(
         model.predict_proba(
             features
-        )[0][1]
-        * 100
-    )
-
-    fta_pct = round(
-        ml_probability,
+        )[0][1] * 100,
         2
     )
 
-    model_source = "ML Model"
+    source = "ML Model"
 
 else:
 
@@ -216,15 +349,17 @@ else:
         is_home
     )
 
-    model_source = (
-        "Fallback Hybrid Model"
-    )
+    source = "Hybrid Model"
 
 ev_pct = calculate_ev(
     back_odds,
     lay_odds,
     fta_pct
 )
+
+# --------------------------
+# OUTPUT
+# --------------------------
 
 col1, col2 = st.columns(2)
 
@@ -242,40 +377,72 @@ with col2:
         f"{ev_pct:.2f}%"
     )
 
+st.caption(
+    f"Source: {source}"
+)
+
 st.markdown("---")
 
 st.subheader(
-    "ML Features"
+    "Team Profile"
+)
+
+c1, c2, c3 = st.columns(3)
+
+with c1:
+
+    st.metric(
+        "Average xG",
+        f"{avg_xg:.2f}"
+    )
+
+    st.metric(
+        "Average xGA",
+        f"{avg_xga:.2f}"
+    )
+
+with c2:
+
+    st.metric(
+        "Goals Last 5",
+        goals_last5
+    )
+
+    st.metric(
+        "Conceded Last 5",
+        conceded_last5
+    )
+
+with c3:
+
+    st.metric(
+        "Recent Turnaround %",
+        f"{turnaround_pct:.2f}"
+    )
+
+    st.metric(
+        "Historical Turnaround %",
+        f"{historical_turnaround_rate:.2f}"
+    )
+
+st.markdown("---")
+
+st.subheader(
+    "Historical 2UP Profile"
 )
 
 st.write(
-    f"Model Source: {model_source}"
+    f"Historical Matches: {historical_matches}"
 )
 
 st.write(
-    f"Average xG: {avg_xg:.2f}"
+    f"Historical 2UP Triggers: {historical_two_up}"
 )
 
 st.write(
-    f"Average xGA: {avg_xga:.2f}"
+    f"Historical Combacks: {historical_comebacks}"
 )
 
 st.write(
-    f"Goals Last 5: {goals_last5}"
-)
-
-st.write(
-    f"Conceded Last 5: {conceded_last5}"
-)
-
-st.write(
-    f"Recent Turnaround %: {turnaround_pct:.2f}"
-)
-
-st.write(
-    f"Historical 2UP Trigger Rate: {trigger_rate:.2f}"
-)
-
-st.write(
-    f"Historical Turnaround Rate: {historical_turnaround_rate:.2f}"
+    f"2UP Trigger Rate: {trigger_rate:.2f}%"
 )
