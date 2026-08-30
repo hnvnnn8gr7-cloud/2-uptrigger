@@ -43,9 +43,13 @@ def get_completed_fixtures():
 
     data = response.json()
 
-    fixtures = data.get(
-        "response",
-        []
+    print(data)
+
+fixtures = data.get(
+    "response",
+    []
+)
+
     )
 
     print(
