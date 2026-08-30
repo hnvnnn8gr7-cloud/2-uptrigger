@@ -1,26 +1,27 @@
 import os
 import subprocess
 import joblib
-import pandas as pd
 import streamlit as st
 
 from datetime import datetime
 
 from database import (
     create_tables,
-    get_db
+    get_db,
+    get_tracked_bets,
+    get_performance_stats,
+    get_model_runs
 )
 
-from model import (
-    calculate_hybrid_fta,
-    calculate_ev
+from performance import (
+    calculate_roi
 )
 
 
 create_tables()
 
 st.set_page_config(
-    page_title="2UP Master",
+    page_title="2UP Master V2",
     page_icon="⚽",
     layout="wide"
 )
@@ -28,12 +29,40 @@ st.set_page_config(
 MODEL_FILE = "fta_model.pkl"
 
 st.title(
-    "⚡ 2UP Master Finder"
+    "⚽ 2UP Master V2"
 )
 
-# --------------------------
+# ===================================
+# SIDEBAR
+# ===================================
+
+st.sidebar.header(
+    "Filters"
+)
+
+min_fta = st.sidebar.slider(
+    "Minimum FTA %",
+    0,
+    100,
+    0
+)
+
+min_ev = st.sidebar.slider(
+    "Minimum EV %",
+    0,
+    200,
+    100
+)
+
+if st.sidebar.button(
+    "Reset Filters"
+):
+
+    st.rerun()
+
+# ===================================
 # MODEL STATUS
-# --------------------------
+# ===================================
 
 if os.path.exists(
     MODEL_FILE
@@ -52,397 +81,265 @@ if os.path.exists(
 else:
 
     st.warning(
-        "No trained model found."
+        "No trained model found"
     )
 
-# --------------------------
-# RETRAIN BUTTON
-# --------------------------
+# ===================================
+# TABS
+# ===================================
 
-st.subheader(
-    "Model Controls"
-)
-
-if st.button(
-    "🔄 Retrain Model"
-):
-
-    with st.spinner(
-        "Retraining model..."
-    ):
-
-        result = subprocess.run(
-            [
-                "venv/bin/python",
-                "retrain_model.py"
-            ],
-            capture_output=True,
-            text=True
-        )
-
-        if result.stdout:
-
-            st.success(
-                "Training complete"
-            )
-
-            st.code(
-                result.stdout
-            )
-
-        if result.stderr:
-
-            st.error(
-                result.stderr
-            )
-
-# --------------------------
-# LOAD MODEL
-# --------------------------
-
-model = None
-
-try:
-
-    model = joblib.load(
-        MODEL_FILE
-    )
-
-except:
-
-    model = None
-
-# --------------------------
-# MODEL VERSION
-# --------------------------
-
-model_version = st.selectbox(
-    "Prediction Method",
+tabs = st.tabs(
     [
-        "ML Model",
-        "Hybrid Model"
+        "⚡ Opportunities",
+        "⭐ Best Bets",
+        "📌 Tracked Bets",
+        "📈 Performance",
+        "🧪 Model Lab",
+        "🤖 Model Controls"
     ]
 )
 
-# --------------------------
-# TEAM DATA
-# --------------------------
+# ===================================
+# OPPORTUNITIES
+# ===================================
 
-conn = get_db()
-
-teams = conn.execute(
-    """
-    SELECT team
-    FROM team_stats
-    ORDER BY team
-    """
-).fetchall()
-
-team_list = [
-    row[0]
-    for row in teams
-]
-
-selected_team = st.selectbox(
-    "Team",
-    team_list
-)
-
-stats = conn.execute(
-    """
-    SELECT
-
-        avg_xg,
-        avg_xga,
-
-        goals_last5,
-        conceded_last5,
-
-        turnaround_pct,
-
-        two_up_trigger_rate,
-
-        historical_turnaround_rate,
-
-        historical_matches,
-
-        historical_two_up,
-
-        historical_comebacks
-
-    FROM team_stats
-
-    WHERE team = ?
-    """,
-    (
-        selected_team,
-    )
-).fetchone()
-
-conn.close()
-
-# --------------------------
-# USER INPUT
-# --------------------------
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    back_odds = st.number_input(
-        "Back Odds",
-        min_value=1.01,
-        value=4.0
+with tabsst.header(
+        "⚡ Opportunities"
     )
 
-with col2:
-
-    lay_odds = st.number_input(
-        "Lay Odds",
-        min_value=1.01,
-        value=4.2
+    st.info(
+        "Will populate automatically when odds_history contains data."
     )
 
-is_home = st.checkbox(
-    "Home Team",
-    value=True
-)
+    conn = get_db()
 
-# --------------------------
-# TEAM STATS
-# --------------------------
+    odds_count = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM odds_history
+        """
+    ).fetchone()[0]
 
-if stats:
+    conn.close()
 
-    avg_xg = stats[0] or 0
-    avg_xga = stats[1] or 0
-
-    goals_last5 = stats[2] or 0
-    conceded_last5 = stats[3] or 0
-
-    turnaround_pct = stats[4] or 0
-
-    trigger_rate = stats[5] or 0
-
-    historical_turnaround_rate = (
-        stats[6] or 0
+    st.metric(
+        "Stored Opportunities",
+        odds_count
     )
 
-    historical_matches = (
-        stats[7] or 0
+# ===================================
+# BEST BETS
+# ===================================
+
+with tabsst.header(
+        "⭐ Best Bets"
     )
 
-    historical_two_up = (
-        stats[8] or 0
+    st.info(
+        "Best EV opportunities will appear here."
     )
 
-    historical_comebacks = (
-        stats[9] or 0
+# ===================================
+# TRACKED BETS
+# ===================================
+
+with tabsst.header(
+        "📌 Tracked Bets"
     )
 
-else:
+    bets = get_tracked_bets()
 
-    avg_xg = 0
-    avg_xga = 0
+    if not bets:
 
-    goals_last5 = 0
-    conceded_last5 = 0
+        st.info(
+            "No tracked bets yet."
+        )
 
-    turnaround_pct = 0
+    else:
 
-    trigger_rate = 0
+        for bet in bets:
 
-    historical_turnaround_rate = 0
+            st.write(bet)
 
-    historical_matches = 0
+# ===================================
+# PERFORMANCE
+# ===================================
 
-    historical_two_up = 0
-
-    historical_comebacks = 0
-
-# --------------------------
-# FTA CALCULATION
-# --------------------------
-
-if (
-    model
-    and
-    model_version == "ML Model"
-):
-
-    features = pd.DataFrame(
-        [
-            [
-                avg_xg,
-                avg_xga,
-
-                goals_last5,
-                conceded_last5,
-
-                turnaround_pct,
-
-                trigger_rate,
-
-                historical_turnaround_rate,
-
-                int(is_home),
-
-                45,
-
-                2,
-
-                back_odds,
-
-                0,
-
-                0,
-                0,
-
-                0,
-                0
-            ]
-        ],
-        columns=[
-            "avg_xg",
-            "avg_xga",
-
-            "goals_last5",
-            "conceded_last5",
-
-            "turnaround_pct",
-
-            "two_up_trigger_rate",
-
-            "historical_turnaround_rate",
-
-            "is_home",
-
-            "lead_minute",
-
-            "max_lead",
-
-            "opening_back_odds",
-
-            "odds_movement",
-
-            "red_cards_for",
-            "red_cards_against",
-
-            "shots_for",
-            "shots_against"
-        ]
+with tabsst.header(
+        "📈 Performance"
     )
 
-    fta_pct = round(
-        model.predict_proba(
-            features
-        )[0][1] * 100,
+    stats = get_performance_stats()
+
+    total_bets = stats[0]
+
+    expected_profit = round(
+        stats[1],
         2
     )
 
-    source = "ML Model"
-
-else:
-
-    fta_pct = calculate_hybrid_fta(
-        back_odds,
-        is_home
+    actual_profit = round(
+        stats[2],
+        2
     )
 
-    source = "Hybrid Model"
+    roi = calculate_roi()
 
-ev_pct = calculate_ev(
-    back_odds,
-    lay_odds,
-    fta_pct
-)
+    c1, c2, c3, c4 = st.columns(4)
 
-# --------------------------
-# OUTPUT
-# --------------------------
+    with c1:
 
-col1, col2 = st.columns(2)
+        st.metric(
+            "Total Bets",
+            total_bets
+        )
 
-with col1:
+    with c2:
 
-    st.metric(
-        "FTA %",
-        f"{fta_pct:.2f}%"
+        st.metric(
+            "Expected Profit",
+            f"£{expected_profit}"
+        )
+
+    with c3:
+
+        st.metric(
+            "Actual Profit",
+            f"£{actual_profit}"
+        )
+
+    with c4:
+
+        st.metric(
+            "ROI %",
+            f"{roi}%"
+        )
+
+# ===================================
+# MODEL LAB
+# ===================================
+
+with tabsst.header(
+        "🧪 Model Lab"
     )
 
-with col2:
+    model_runs = get_model_runs()
 
-    st.metric(
-        "EV %",
-        f"{ev_pct:.2f}%"
+    if not model_runs:
+
+        st.info(
+            "No model runs recorded."
+        )
+
+    else:
+
+        for run in model_runs:
+
+            st.write(run)
+
+# ===================================
+# MODEL CONTROLS
+# ===================================
+
+with tabsst.header(
+        "🤖 Model Controls"
     )
 
-st.caption(
-    f"Source: {source}"
-)
+    if st.button(
+        "🔄 Retrain Model"
+    ):
 
-st.markdown("---")
+        with st.spinner(
+            "Training..."
+        ):
 
-st.subheader(
-    "Team Profile"
-)
+            result = subprocess.run(
+                [
+                    "venv/bin/python",
+                    "retrain_model.py"
+                ],
+                capture_output=True,
+                text=True
+            )
 
-c1, c2, c3 = st.columns(3)
+            if result.stdout:
 
-with c1:
+                st.success(
+                    "Training Complete"
+                )
 
-    st.metric(
-        "Average xG",
-        f"{avg_xg:.2f}"
-    )
+                st.code(
+                    result.stdout
+                )
 
-    st.metric(
-        "Average xGA",
-        f"{avg_xga:.2f}"
-    )
+            if result.stderr:
 
-with c2:
+                st.error(
+                    result.stderr
+                )
 
-    st.metric(
-        "Goals Last 5",
-        goals_last5
-    )
+    st.markdown("---")
 
-    st.metric(
-        "Conceded Last 5",
-        conceded_last5
-    )
+    conn = get_db()
 
-with c3:
+    teams = conn.execute(
+        """
+        SELECT team
+        FROM team_stats
+        ORDER BY team
+        """
+    ).fetchall()
 
-    st.metric(
-        "Recent Turnaround %",
-        f"{turnaround_pct:.2f}"
-    )
+    conn.close()
 
-    st.metric(
-        "Historical Turnaround %",
-        f"{historical_turnaround_rate:.2f}"
-    )
+    if teams:
 
-st.markdown("---")
+        team_list = [
+            row[0]
+            for row in teams
+        ]
 
-st.subheader(
-    "Historical 2UP Profile"
-)
+        selected_team = st.selectbox(
+            "Team Profile",
+            team_list
+        )
 
-st.write(
-    f"Historical Matches: {historical_matches}"
-)
+        conn = get_db()
 
-st.write(
-    f"Historical 2UP Triggers: {historical_two_up}"
-)
+        team_data = conn.execute(
+            """
+            SELECT
+                avg_xg,
+                avg_xga,
+                turnaround_pct,
+                two_up_trigger_rate,
+                historical_turnaround_rate
+            FROM team_stats
+            WHERE team = ?
+            """,
+            (selected_team,)
+        ).fetchone()
 
-st.write(
-    f"Historical Combacks: {historical_comebacks}"
-)
+        conn.close()
 
-st.write(
-    f"2UP Trigger Rate: {trigger_rate:.2f}%"
-)
+        if team_data:
+
+            st.write(
+                f"Average xG: {team_data[0]}"
+            )
+
+            st.write(
+                f"Average xGA: {team_data[1]}"
+            )
+
+            st.write(
+                f"Turnaround %: {team_data[2]}"
+            )
+
+            st.write(
+                f"2UP Trigger Rate: {team_data[3]}"
+            )
+
+            st.write(
+                f"Historical Turnaround Rate: {team_data[4]}"
+            )
