@@ -121,6 +121,7 @@ with tabsst.header(
         "⚡ Opportunities"
     )
 
+
     st.info(
         "Will populate automatically when odds_history contains data."
     )
@@ -149,6 +150,7 @@ with tabsst.header(
         "⭐ Best Bets"
     )
 
+
     st.info(
         "Best EV opportunities will appear here."
     )
@@ -160,6 +162,7 @@ with tabsst.header(
 with tabsst.header(
         "📌 Tracked Bets"
     )
+
 
     bets = get_tracked_bets()
 
@@ -180,8 +183,9 @@ with tabsst.header(
 # ===================================
 
 with tabsst.header(
-        "📈 Performance"
+        "📈 Performance Dashboard"
     )
+
 
     stats = get_performance_stats()
 
@@ -237,6 +241,7 @@ with tabsst.header(
         "🧪 Model Lab"
     )
 
+
     model_runs = get_model_runs()
 
     if not model_runs:
@@ -258,6 +263,7 @@ with tabsst.header(
 with tabsst.header(
         "🤖 Model Controls"
     )
+
 
     if st.button(
         "🔄 Retrain Model"
