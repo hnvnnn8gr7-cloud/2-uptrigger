@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import requests
 import sqlite3
 
@@ -20,11 +20,9 @@ def get_db():
 
 def get_completed_fixtures():
 
-    yesterday = "2026-08-29"
-
     url = (
         "https://v3.football.api-sports.io/"
-        f"fixtures?date={yesterday}"
+        "fixtures?date=2026-08-29"
     )
 
     response = requests.get(
@@ -49,6 +47,84 @@ def get_completed_fixtures():
     )
 
     return fixtures[:100]
+
+
+def get_fixture_events(
+    fixture_id
+):
+
+    url = (
+        "https://v3.football.api-sports.io/"
+        f"fixtures/events?fixture={fixture_id}"
+    )
+
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=20
+    )
+
+    data = response.json()
+
+    return data.get(
+        "response",
+        []
+    )
+
+
+def detect_2up_turnaround(
+    home_team,
+    away_team,
+    events
+):
+
+    home_score = 0
+    away_score = 0
+
+    home_2up = False
+    away_2up = False
+
+    for event in events:
+
+        if event.get("type") != "Goal":
+            continue
+
+        scoring_team = (
+            event["team"]["name"]
+        )
+
+        if scoring_team == home_team:
+            home_score += 1
+
+        elif scoring_team == away_team:
+            away_score += 1
+
+        if home_score - away_score >= 2:
+            home_2up = True
+
+        if away_score - home_score >= 2:
+            away_2up = True
+
+    final_home = home_score
+    final_away = away_score
+
+    home_turnaround = 0
+    away_turnaround = 0
+
+    if home_2up and final_home <= final_away:
+        home_turnaround = 1
+
+    if away_2up and final_away <= final_home:
+        away_turnaround = 1
+
+    return (
+        final_home,
+        final_away,
+        int(home_2up),
+        int(away_2up),
+        home_turnaround,
+        away_turnaround
+    )
 
 
 def save_result(
@@ -82,8 +158,12 @@ def save_result(
             away_turnaround,
             processed_at
         )
+
         VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+        (
+            ?,?,?,?,?,?,?,?,?,?,?
+        )
         """,
         (
             str(fixture_id),
@@ -103,6 +183,7 @@ def save_result(
     )
 
     conn.commit()
+
     conn.close()
 
 
@@ -114,9 +195,17 @@ def process_results():
 
     for fixture in fixtures:
 
-        fixture_id = fixture["fixture"]["id"]
+        print(
+            f"Processing {processed + 1}/{len(fixtures)}"
+        )
 
-        league = fixture["league"]["name"]
+        fixture_id = (
+            fixture["fixture"]["id"]
+        )
+
+        league = (
+            fixture["league"]["name"]
+        )
 
         home_team = (
             fixture["teams"]["home"]["name"]
@@ -126,20 +215,21 @@ def process_results():
             fixture["teams"]["away"]["name"]
         )
 
-        final_home = (
-            fixture["goals"]["home"]
-            if fixture["goals"]["home"] is not None
-            else 0
+        events = get_fixture_events(
+            fixture_id
         )
 
-        final_away = (
-            fixture["goals"]["away"]
-            if fixture["goals"]["away"] is not None
-            else 0
-        )
-
-        print(
-            f"Processing {processed + 1}/{len(fixtures)}"
+        (
+            final_home,
+            final_away,
+            home_2up,
+            away_2up,
+            home_turnaround,
+            away_turnaround
+        ) = detect_2up_turnaround(
+            home_team,
+            away_team,
+            events
         )
 
         save_result(
@@ -149,10 +239,14 @@ def process_results():
             away_team,
             final_home,
             final_away,
-            0,
-            0,
-            0,
-            0
+            home_2up,
+            away_2up,
+            home_turnaround,
+            away_turnaround
+        )
+
+        print(
+            f"Saved {home_team} vs {away_team}"
         )
 
         processed += 1
