@@ -16,10 +16,16 @@ def build_training_data():
         SELECT
             match_id,
             league,
+
             home_team,
             away_team,
+
             home_turnaround,
-            away_turnaround
+            away_turnaround,
+
+            home_lead_minute,
+            away_lead_minute
+
         FROM match_results
         """
     ).fetchall()
@@ -31,21 +37,36 @@ def build_training_data():
         (
             match_id,
             league,
+
             home_team,
             away_team,
+
             home_turnaround,
-            away_turnaround
+            away_turnaround,
+
+            home_lead_minute,
+            away_lead_minute
+
         ) = match
 
         home_stats = conn.execute(
             """
             SELECT
+
                 avg_xg,
                 avg_xga,
+
                 goals_last5,
                 conceded_last5,
-                turnaround_pct
+
+                turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate
+
             FROM team_stats
+
             WHERE team = ?
             """,
             (home_team,)
@@ -54,12 +75,21 @@ def build_training_data():
         away_stats = conn.execute(
             """
             SELECT
+
                 avg_xg,
                 avg_xga,
+
                 goals_last5,
                 conceded_last5,
-                turnaround_pct
+
+                turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate
+
             FROM team_stats
+
             WHERE team = ?
             """,
             (away_team,)
@@ -77,6 +107,7 @@ def build_training_data():
             (
                 match_id,
                 league,
+
                 team,
 
                 is_home,
@@ -91,6 +122,10 @@ def build_training_data():
                 conceded_last5,
 
                 turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate,
 
                 lead_minute,
                 max_lead,
@@ -113,14 +148,17 @@ def build_training_data():
 
             VALUES
             (
-                ?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?,?,?,
-                ?
+                ?,?,?,?,?,?,
+                ?,?,?,?,?,?,
+                ?,?,?,?,?,?,
+                ?,?,?,?,?,?,
+                ?,?
             )
             """,
             (
                 match_id,
                 league,
+
                 home_team,
 
                 1,
@@ -136,7 +174,12 @@ def build_training_data():
 
                 home_stats[4],
 
-                0,
+                home_stats[5],
+
+                home_stats[6],
+
+                home_lead_minute or 0,
+
                 2,
 
                 0,
@@ -164,6 +207,7 @@ def build_training_data():
             (
                 match_id,
                 league,
+
                 team,
 
                 is_home,
@@ -178,6 +222,10 @@ def build_training_data():
                 conceded_last5,
 
                 turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate,
 
                 lead_minute,
                 max_lead,
@@ -200,14 +248,17 @@ def build_training_data():
 
             VALUES
             (
-                ?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?,?,?,
-                ?
+                ?,?,?,?,?,?,
+                ?,?,?,?,?,?,
+                ?,?,?,?,?,?,
+                ?,?,?,?,?,?,
+                ?,?
             )
             """,
             (
                 match_id,
                 league,
+
                 away_team,
 
                 0,
@@ -223,7 +274,12 @@ def build_training_data():
 
                 away_stats[4],
 
-                0,
+                away_stats[5],
+
+                away_stats[6],
+
+                away_lead_minute or 0,
+
                 2,
 
                 0,
