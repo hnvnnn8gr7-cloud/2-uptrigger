@@ -808,4 +808,134 @@ with tabsst.header(
             settled_bets
         )
 
+with tabs```
+
+with:
+
+```python
+with tabsst.header(
+        "🧪 Model Lab"
+    )
+
+    model_runs = get_model_runs()
+
+    if not model_runs:
+
+        st.info(
+            "No model runs recorded yet."
+        )
+
+    else:
+
+        st.subheader(
+            "Training History"
+        )
+
+        model_df = pd.DataFrame(
+            model_runs,
+            columns=[
+                "ID",
+                "Model",
+                "Trained At",
+                "Training Rows",
+                "Notes"
+            ]
+        )
+
+        st.dataframe(
+            model_df,
+            use_container_width=True
+        )
+
+        st.markdown("---")
+
+        latest_models = (
+            model_df["Model"]
+            .unique()
+            .tolist()
+        )
+
+        if latest_models:
+
+            model_a = st.selectbox(
+                "Model A",
+                latest_models,
+                key="model_a"
+            )
+
+            model_b = st.selectbox(
+                "Model B",
+                latest_models,
+                key="model_b"
+            )
+
+            st.markdown("---")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                st.metric(
+                    "Model A",
+                    model_a
+                )
+
+            with col2:
+
+                st.metric(
+                    "Model B",
+                    model_b
+                )
+
+        st.markdown("---")
+
+        champion_model = st.selectbox(
+            "Champion Model",
+            latest_models,
+            key="champion"
+        )
+
+        st.success(
+            f"Current Champion: {champion_model}"
+        )
+
+        st.markdown("---")
+
+        st.subheader(
+            "Model Statistics"
+        )
+
+        latest_run = model_runs[0]
+
+        st.write(
+            f"Model: {latest_run[1]}"
+        )
+
+        st.write(
+            f"Trained: {latest_run[2]}"
+        )
+
+        st.write(
+            f"Training Rows: {latest_run[3]}"
+        )
+
+        st.write(
+            f"Notes: {latest_run[4]}"
+        )
+
+        st.markdown("---")
+
+        if os.path.exists(
+            "fta_model.pkl"
+        ):
+
+            modified = datetime.fromtimestamp(
+                os.path.getmtime(
+                    "fta_model.pkl"
+                )
+            )
+
+            st.info(
+                f"Latest model file updated: {modified}"
+            )
 
