@@ -9,11 +9,15 @@ CSV_FILE = "2up_multi_league_dataset.csv"
 
 def build_profiles():
 
-    df = pd.read_csv(CSV_FILE)
+    df = pd.read_csv(
+        CSV_FILE
+    )
 
     conn = get_db()
 
-    teams = df["trigger_team"].unique()
+    teams = df[
+        "trigger_team"
+    ].unique()
 
     updated = 0
 
@@ -23,39 +27,54 @@ def build_profiles():
             df["trigger_team"] == team
         ]
 
-        matches = len(team_df)
+        matches = len(
+            team_df
+        )
 
         two_up = len(
             team_df[
-                team_df["2up_triggered"] == True
+                team_df[
+                    "2up_triggered"
+                ] == True
             ]
         )
 
         comebacks = len(
             team_df[
-                team_df["comeback_occurred"] == True
+                team_df[
+                    "comeback_occurred"
+                ] == True
             ]
         )
 
         trigger_rate = 0
 
         if matches > 0:
+
             trigger_rate = round(
-                (two_up / matches) * 100,
+                (
+                    two_up /
+                    matches
+                ) * 100,
                 2
             )
 
         turnaround_rate = 0
 
         if two_up > 0:
+
             turnaround_rate = round(
-                (comebacks / two_up) * 100,
+                (
+                    comebacks /
+                    two_up
+                ) * 100,
                 2
             )
 
         conn.execute(
             """
-            INSERT OR IGNORE INTO team_stats
+            INSERT OR IGNORE INTO
+            team_stats
             (
                 team
             )
@@ -69,23 +88,36 @@ def build_profiles():
             """
             UPDATE team_stats
             SET
+
                 historical_matches = ?,
+
                 historical_two_up = ?,
-                two_up_trigger_rate = ?,
+
                 historical_comebacks = ?,
+
+                two_up_trigger_rate = ?,
+
                 historical_turnaround_rate = ?,
+
                 updated_at = ?
+
             WHERE team = ?
             """,
             (
                 matches,
+
                 two_up,
-                trigger_rate,
+
                 comebacks,
+
+                trigger_rate,
+
                 turnaround_rate,
+
                 datetime.now(
                     timezone.utc
                 ).isoformat(),
+
                 team
             )
         )
@@ -93,10 +125,11 @@ def build_profiles():
         updated += 1
 
     conn.commit()
+
     conn.close()
 
     print(
-        f"{updated} team profiles created"
+        f"{updated} historical team profiles built"
     )
 
 
