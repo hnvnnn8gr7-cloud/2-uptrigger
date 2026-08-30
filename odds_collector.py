@@ -1,55 +1,96 @@
-from datetime import datetime
-
+from datetime import datetime, timezone
 import requests
 
 from database import get_db
 
-API_KEY = "ed558120078b3d4c23100523e979ce53"
+API_KEY = "YOUR_API_KEY"
 
-url = (
-    f"https://api.the-odds-api.com/v4/"
-    f"sports/soccer/odds/"
-    f"?apiKey={API_KEY}"
-    f"&regions=uk"
-    f"&markets=h2h"
-)
 
-response = requests.get(url)
+def collect_odds():
 
-matches = response.json()
+    url = (
+        f"https://api.the-odds-api.com/v4/"
+        f"sports/soccer/odds/"
+        f"?apiKey={API_KEY}"
+        f"&regions=uk,eu"
+        f"&markets=h2h"
+        f"&oddsFormat=decimal"
+    )
 
-conn = get_db()
+    response = requests.get(url, timeout=20)
 
-for match in matches:
+    if response.status_code != 200:
+        print("Failed to fetch odds")
+        return
 
-    for bookmaker in match.get(
-        "bookmakers",
-        []
-    ):
+    matches = response.json()
 
-        conn.execute(
-            """
-            INSERT INTO odds_history
-            (
-                timestamp,
-                match_id,
-                team,
-                back_odds,
-                lay_odds
-            )
+    conn = get_db()
 
-            VALUES
+    rows_added = 0
 
-            (?, ?, ?, ?, ?)
-            """,
-            (
-                datetime.utcnow().isoformat(),
-                match["id"],
-                match["home_team"],
-                0,
-                0
-            )
-        )
+    for match in matches:
 
-conn.commit()
-conn.close()
+        match_id = match.get("id")
+
+        for bookmaker in match.get(
+            "bookmakers",
+            []
+        ):
+
+            for market in bookmaker.get(
+                "markets",
+                []
+            ):
+
+                if market.get("key") != "h2h":
+                    continue
+
+                for outcome in market.get(
+                    "outcomes",
+                    []
+                ):
+
+                    odds = outcome.get(
+                        "price"
+                    )
+
+                    team = outcome.get(
+                        "name"
+                    )
+
+                    conn.execute(
+                        """
+                        INSERT INTO odds_history
+                        (
+                            timestamp,
+                            match_id,
+                            team,
+                            back_odds,
+                            lay_odds
+                        )
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            datetime.now(
+                                timezone.utc
+                            ).isoformat(),
+                            match_id,
+                            team,
+                            float(odds),
+                            None
+                        )
+                    )
+
+                    rows_added += 1
+
+    conn.commit()
+    conn.close()
+
+    print(
+        f"{rows_added} odds stored"
+    )
+
+
+if __name__ == "__main__":
+    collect_odds()
