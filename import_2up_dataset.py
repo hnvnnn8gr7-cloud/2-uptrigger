@@ -9,28 +9,22 @@ CSV_FILE = "2up_multi_league_dataset.csv"
 
 def import_dataset():
 
+    conn = get_db()
+
     df = pd.read_csv(
         CSV_FILE
     )
-
-    conn = get_db()
 
     inserted = 0
 
     for _, row in df.iterrows():
 
-        triggered = (
-            str(
-                row["2up_triggered"]
-            ).lower()
-            == "true"
+        triggered = bool(
+            row["2up_triggered"]
         )
 
-        comeback = (
-            str(
-                row["comeback_occurred"]
-            ).lower()
-            == "true"
+        comeback = bool(
+            row["comeback_occurred"]
         )
 
         if not triggered:
@@ -108,7 +102,7 @@ def import_dataset():
                 0,
                 0,
 
-                0.5,
+                0.50,
 
                 int(comeback),
 
@@ -121,11 +115,10 @@ def import_dataset():
         inserted += 1
 
     conn.commit()
-
     conn.close()
 
     print(
-        f"{inserted} rows imported"
+        f"{inserted} historical rows imported"
     )
 
 
