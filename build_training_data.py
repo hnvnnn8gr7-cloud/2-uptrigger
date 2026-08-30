@@ -81,6 +81,9 @@ def build_training_data():
 
                 is_home,
 
+                back_odds,
+                lay_odds,
+
                 avg_xg,
                 avg_xga,
 
@@ -101,13 +104,18 @@ def build_training_data():
                 shots_for,
                 shots_against,
 
+                sample_weight,
+
                 full_turnaround,
+
                 created_at
             )
+
             VALUES
             (
                 ?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?
+                ?,?,?,?,?,?,?,?,?,?,
+                ?
             )
             """,
             (
@@ -116,6 +124,9 @@ def build_training_data():
                 home_team,
 
                 1,
+
+                0,
+                0,
 
                 home_stats[0],
                 home_stats[1],
@@ -126,7 +137,7 @@ def build_training_data():
                 home_stats[4],
 
                 0,
-                0,
+                2,
 
                 0,
                 0,
@@ -136,6 +147,8 @@ def build_training_data():
 
                 0,
                 0,
+
+                1.0,
 
                 home_turnaround,
 
@@ -155,6 +168,9 @@ def build_training_data():
 
                 is_home,
 
+                back_odds,
+                lay_odds,
+
                 avg_xg,
                 avg_xga,
 
@@ -175,13 +191,18 @@ def build_training_data():
                 shots_for,
                 shots_against,
 
+                sample_weight,
+
                 full_turnaround,
+
                 created_at
             )
+
             VALUES
             (
                 ?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?
+                ?,?,?,?,?,?,?,?,?,?,
+                ?
             )
             """,
             (
@@ -189,6 +210,9 @@ def build_training_data():
                 league,
                 away_team,
 
+                0,
+
+                0,
                 0,
 
                 away_stats[0],
@@ -200,7 +224,7 @@ def build_training_data():
                 away_stats[4],
 
                 0,
-                0,
+                2,
 
                 0,
                 0,
@@ -210,6 +234,8 @@ def build_training_data():
 
                 0,
                 0,
+
+                1.0,
 
                 away_turnaround,
 
@@ -222,10 +248,11 @@ def build_training_data():
         inserted += 2
 
     conn.commit()
+
     conn.close()
 
     print(
-        f"{inserted} training rows built"
+        f"{inserted} API training rows built"
     )
 
 
