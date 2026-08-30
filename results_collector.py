@@ -219,6 +219,10 @@ def process_results():
             fixture["teams"]["away"]["name"]
         )
 
+print(
+    f"Processing fixture {processed + 1}/{len(fixtures)}"
+)
+
         events = get_fixture_events(
             fixture_id
         )
