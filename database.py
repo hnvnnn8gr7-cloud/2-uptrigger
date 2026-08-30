@@ -18,26 +18,28 @@ def create_tables():
     CREATE TABLE IF NOT EXISTS tracked_bets (
         id TEXT PRIMARY KEY,
 
-        match TEXT,
+        match_name TEXT,
         team TEXT,
+        league TEXT,
         kickoff TEXT,
 
         back_odds REAL,
         lay_odds REAL,
 
         stake REAL,
-
         lay_stake REAL,
 
         qualifying_loss REAL,
 
-        ev_status TEXT,
+        fta_pct REAL,
+        ev_pct REAL,
+
+        expected_profit REAL,
+        actual_profit REAL,
 
         result TEXT,
 
-        expected_profit REAL,
-
-        actual_profit REAL
+        created_at TEXT
     )
     """)
 
@@ -66,6 +68,34 @@ def create_tables():
         back_odds REAL,
 
         lay_odds REAL
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS match_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        match_id TEXT,
+
+        league TEXT,
+
+        home_team TEXT,
+
+        away_team TEXT,
+
+        final_home INTEGER,
+
+        final_away INTEGER,
+
+        home_2up INTEGER,
+
+        away_2up INTEGER,
+
+        home_turnaround INTEGER,
+
+        away_turnaround INTEGER,
+
+        processed_at TEXT
     )
     """)
 
@@ -114,34 +144,6 @@ def create_tables():
     """)
 
     conn.execute("""
-    CREATE TABLE IF NOT EXISTS match_results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-        match_id TEXT,
-
-        league TEXT,
-
-        home_team TEXT,
-
-        away_team TEXT,
-
-        final_home INTEGER,
-
-        final_away INTEGER,
-
-        home_2up INTEGER,
-
-        away_2up INTEGER,
-
-        home_turnaround INTEGER,
-
-        away_turnaround INTEGER,
-
-        processed_at TEXT
-    )
-    """)
-
-    conn.execute("""
     CREATE TABLE IF NOT EXISTS settings (
         setting_name TEXT PRIMARY KEY,
 
@@ -182,7 +184,7 @@ def save_setting(
 
 def get_setting(
     name,
-    default=None
+    default_value=None
 ):
 
     conn = get_db()
@@ -198,48 +200,52 @@ def get_setting(
 
     conn.close()
 
-    if not row:
-        return default
+    if row:
+        return row[0]
 
-    return row[0]
+    return default_value
 
 
-def save_tracked_bet(item):
+def save_tracked_bet(
+    data
+):
 
     conn = get_db()
 
     conn.execute(
         """
         INSERT OR REPLACE INTO tracked_bets
-        VALUES
-        (
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
+        VALUES (
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
             ?
         )
         """,
         (
-            item["id"],
-            item["match"],
-            item["team"],
-            item["kickoff"],
+            data["id"],
+            data["match_name"],
+            data["team"],
+            data["league"],
+            data["kickoff"],
 
-            item["back_odds"],
-            item["lay_odds"],
+            data["back_odds"],
+            data["lay_odds"],
 
-            item["stake"],
-            item["lay_stake"],
+            data["stake"],
+            data["lay_stake"],
 
-            item["qualifying_loss"],
+            data["qualifying_loss"],
 
-            item["ev_status"],
+            data["fta_pct"],
+            data["ev_pct"],
 
-            item["result"],
+            data["expected_profit"],
+            data["actual_profit"],
 
-            item["expected_profit"],
+            data["result"],
 
-            item["actual_profit"]
+            data["created_at"]
         )
     )
 
@@ -247,7 +253,7 @@ def save_tracked_bet(item):
     conn.close()
 
 
-def load_tracked_bets():
+def get_tracked_bets():
 
     conn = get_db()
 
@@ -255,29 +261,13 @@ def load_tracked_bets():
         """
         SELECT *
         FROM tracked_bets
+        ORDER BY created_at DESC
         """
     ).fetchall()
 
     conn.close()
 
-    return [
-        {
-            "id": r[0],
-            "match": r[1],
-            "team": r[2],
-            "kickoff": r[3],
-            "back_odds": r[4],
-            "lay_odds": r[5],
-            "stake": r[6],
-            "lay_stake": r[7],
-            "qualifying_loss": r[8],
-            "ev_status": r[9],
-            "result": r[10],
-            "expected_profit": r[11],
-            "actual_profit": r[12]
-        }
-        for r in rows
-    ]
+    return rows
 
 
 def delete_tracked_bet(
