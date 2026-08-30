@@ -5,6 +5,9 @@ from database import get_db
 from xgboost import XGBClassifier
 
 
+MODEL_FILE = "fta_model.pkl"
+
+
 def train_model():
 
     conn = get_db()
@@ -22,7 +25,11 @@ def train_model():
     if len(df) < 100:
 
         print(
-            "Need at least 100 rows"
+            f"Only {len(df)} rows found."
+        )
+
+        print(
+            "Need at least 100 rows."
         )
 
         return
@@ -37,6 +44,9 @@ def train_model():
 
         "turnaround_pct",
 
+        "two_up_trigger_rate",
+        "historical_turnaround_rate",
+
         "is_home",
 
         "lead_minute",
@@ -48,11 +58,9 @@ def train_model():
         "odds_movement",
 
         "red_cards_for",
-
         "red_cards_against",
 
         "shots_for",
-
         "shots_against"
     ]
 
@@ -62,24 +70,44 @@ def train_model():
 
     y = df["full_turnaround"]
 
-    weights = df["sample_weight"]
+    if "sample_weight" in df.columns:
+
+        weights = df[
+            "sample_weight"
+        ].fillna(1.0)
+
+    else:
+
+        weights = None
 
     model = XGBClassifier(
-        n_estimators=300,
-        max_depth=5,
+        n_estimators=500,
+        max_depth=6,
         learning_rate=0.03,
-        random_state=42
+        subsample=0.9,
+        colsample_bytree=0.9,
+        random_state=42,
+        eval_metric="logloss"
     )
 
-    model.fit(
-        X,
-        y,
-        sample_weight=weights
-    )
+    if weights is not None:
+
+        model.fit(
+            X,
+            y,
+            sample_weight=weights
+        )
+
+    else:
+
+        model.fit(
+            X,
+            y
+        )
 
     joblib.dump(
         model,
-        "fta_model.pkl"
+        MODEL_FILE
     )
 
     print(
@@ -87,8 +115,25 @@ def train_model():
     )
 
     print(
-        "fta_model.pkl saved"
+        f"Saved {MODEL_FILE}"
     )
+
+    print("\nTop Features:\n")
+
+    importance = sorted(
+        zip(
+            features,
+            model.feature_importances_
+        ),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    for feature, score in importance:
+
+        print(
+            f"{feature}: {score:.4f}"
+        )
 
 
 if __name__ == "__main__":
