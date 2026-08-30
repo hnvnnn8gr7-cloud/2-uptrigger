@@ -3,7 +3,7 @@ import requests
 
 from database import get_db
 
-API_KEY = "ed558120078b3d4c23100523e979ce53"
+API_KEY = "YOUR_API_KEY"
 
 
 def collect_odds():
@@ -20,7 +20,7 @@ def collect_odds():
     response = requests.get(url, timeout=20)
 
     if response.status_code != 200:
-        print("Failed to fetch odds")
+        print(f"Error: {response.status_code}")
         return
 
     matches = response.json()
@@ -32,11 +32,37 @@ def collect_odds():
     for match in matches:
 
         match_id = match.get("id")
+        kickoff = match.get("commence_time")
+
+        league = match.get(
+            "sport_title",
+            "Unknown"
+        )
+
+        home_team = match.get(
+            "home_team",
+            ""
+        )
+
+        away_team = match.get(
+            "away_team",
+            ""
+        )
 
         for bookmaker in match.get(
             "bookmakers",
             []
         ):
+
+            bookmaker_name = bookmaker.get(
+                "title",
+                ""
+            )
+
+            bookmaker_key = bookmaker.get(
+                "key",
+                ""
+            )
 
             for market in bookmaker.get(
                 "markets",
@@ -51,13 +77,24 @@ def collect_odds():
                     []
                 ):
 
+                    team = outcome.get(
+                        "name"
+                    )
+
                     odds = outcome.get(
                         "price"
                     )
 
-                    team = outcome.get(
-                        "name"
-                    )
+                    exchange_name = None
+                    lay_odds = None
+
+                    if bookmaker_key in [
+                        "betfair_ex",
+                        "smarkets",
+                        "matchbook"
+                    ]:
+                        exchange_name = bookmaker_name
+                        lay_odds = odds
 
                     conn.execute(
                         """
@@ -65,30 +102,52 @@ def collect_odds():
                         (
                             timestamp,
                             match_id,
-                            team,
+                            kickoff,
+                            league,
+                            home_team,
+                            away_team,
+                            selection,
+                            bookmaker,
+                            exchange_name,
                             back_odds,
                             lay_odds
                         )
-                        VALUES (?, ?, ?, ?, ?)
+
+                        VALUES
+
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             datetime.now(
                                 timezone.utc
                             ).isoformat(),
+
                             match_id,
+                            kickoff,
+                            league,
+                            home_team,
+                            away_team,
+
                             team,
-                            float(odds),
-                            None
+
+                            bookmaker_name,
+
+                            exchange_name,
+
+                            odds if not exchange_name else None,
+
+                            lay_odds
                         )
                     )
 
                     rows_added += 1
 
     conn.commit()
+
     conn.close()
 
     print(
-        f"{rows_added} odds stored"
+        f"{rows_added} rows stored"
     )
 
 
