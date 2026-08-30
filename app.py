@@ -343,3 +343,267 @@ with tabsst.header(
             st.write(
                 f"Historical Turnaround Rate: {team_data[4]}"
             )
+
+with tabs```
+
+section with this:
+
+```python
+with tabsst.header(
+        "📌 Tracked Bets"
+    )
+
+    st.subheader(
+        "Add Manual Bet"
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        match_name = st.text_input(
+            "Match Name"
+        )
+
+        team = st.text_input(
+            "Team"
+        )
+
+        back_odds = st.number_input(
+            "Back Odds",
+            min_value=1.01,
+            value=4.0,
+            key="track_back_odds"
+        )
+
+        stake = st.number_input(
+            "Stake (£)",
+            min_value=1.0,
+            value=10.0
+        )
+
+    with col2:
+
+        lay_odds = st.number_input(
+            "Lay Odds",
+            min_value=1.01,
+            value=4.2,
+            key="track_lay_odds"
+        )
+
+        commission = st.number_input(
+            "Commission %",
+            min_value=0.0,
+            max_value=20.0,
+            value=2.0
+        )
+
+        model_used = st.selectbox(
+            "Model",
+            [
+                "ML_V1",
+                "Hybrid"
+            ]
+        )
+
+    lay_stake = calculate_lay_stake(
+        back_odds,
+        lay_odds,
+        stake,
+        commission
+    )
+
+    liability = calculate_liability(
+        lay_odds,
+        lay_stake
+    )
+
+    qualifying_loss = calculate_qualifying_loss(
+        back_odds,
+        lay_odds,
+        stake,
+        lay_stake,
+        commission
+    )
+
+    st.markdown("---")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+
+        st.metric(
+            "Lay Stake",
+            f"£{lay_stake}"
+        )
+
+    with c2:
+
+        st.metric(
+            "Liability",
+            f"£{liability}"
+        )
+
+    with c3:
+
+        st.metric(
+            "Qualifying Loss",
+            f"£{qualifying_loss}"
+        )
+
+    if st.button(
+        "⭐ Save Bet"
+    ):
+
+        import uuid
+
+        save_tracked_bet(
+            {
+                "id": str(
+                    uuid.uuid4()
+                ),
+
+                "match_name": match_name,
+                "team": team,
+                "league": "",
+                "kickoff": "",
+
+                "back_odds": back_odds,
+                "lay_odds": lay_odds,
+
+                "stake": stake,
+
+                "commission": commission,
+
+                "lay_stake": lay_stake,
+
+                "liability": liability,
+
+                "qualifying_loss": qualifying_loss,
+
+                "fta_pct": 0,
+
+                "ev_pct": 0,
+
+                "expected_profit": 0,
+
+                "actual_profit": 0,
+
+                "result": "Pending",
+
+                "model_version": model_used,
+
+                "created_at": datetime.now().isoformat()
+            }
+        )
+
+        st.success(
+            "Bet Saved"
+        )
+
+        st.rerun()
+
+    st.markdown("---")
+
+    bets = get_tracked_bets()
+
+    st.subheader(
+        "Tracked Bets"
+    )
+
+    if not bets:
+
+        st.info(
+            "No tracked bets saved."
+        )
+
+    else:
+
+        for bet in bets:
+
+            with st.expander(
+                f"{bet[1]} | {bet[2]}"
+            ):
+
+                st.write(
+                    f"Back Odds: {bet[5]}"
+                )
+
+                st.write(
+                    f"Lay Odds: {bet[6]}"
+                )
+
+                st.write(
+                    f"Stake: £{bet[7]}"
+                )
+
+                st.write(
+                    f"Lay Stake: £{bet[9]}"
+                )
+
+                st.write(
+                    f"Liability: £{bet[10]}"
+                )
+
+                st.write(
+                    f"Qualifying Loss: £{bet[11]}"
+                )
+
+                st.write(
+                    f"Result: {bet[16]}"
+                )
+
+                col_a, col_b, col_c = st.columns(
+                    3
+                )
+
+                with col_a:
+
+                    if st.button(
+                        "✅ Won",
+                        key=f"won_{bet[0]}"
+                    ):
+
+                        update_bet_result(
+                            bet[0],
+                            "Won",
+                            abs(
+                                float(
+                                    bet[14]
+                                )
+                            )
+                        )
+
+                        st.rerun()
+
+                with col_b:
+
+                    if st.button(
+                        "❌ Lost",
+                        key=f"lost_{bet[0]}"
+                    ):
+
+                        update_bet_result(
+                            bet[0],
+                            "Lost",
+                            -abs(
+                                float(
+                                    bet[11]
+                                )
+                            )
+                        )
+
+                        st.rerun()
+
+                with col_c:
+
+                    if st.button(
+                        "🗑 Delete",
+                        key=f"delete_{bet[0]}"
+                    ):
+
+                        delete_tracked_bet(
+                            bet[0]
+                        )
+
+                        st.rerun()
