@@ -16,30 +16,40 @@ def create_tables():
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS tracked_bets (
-        id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY,
 
-        match_name TEXT,
-        team TEXT,
-        league TEXT,
-        kickoff TEXT,
+    match_name TEXT,
+    team TEXT,
+    league TEXT,
+    kickoff TEXT,
 
-        back_odds REAL,
-        lay_odds REAL,
+    back_odds REAL,
+    lay_odds REAL,
 
-        stake REAL,
-        lay_stake REAL,
+    stake REAL,
 
-        qualifying_loss REAL,
+    commission REAL,
 
-        fta_pct REAL,
-        ev_pct REAL,
+    lay_stake REAL,
 
-        expected_profit REAL,
-        actual_profit REAL,
+    liability REAL,
 
-        result TEXT,
+    qualifying_loss REAL,
 
-        created_at TEXT
+    fta_pct REAL,
+
+    ev_pct REAL,
+
+    expected_profit REAL,
+
+    actual_profit REAL,
+
+    result TEXT,
+
+    model_version TEXT,
+
+    created_at TEXT
+
     )
     """)
 
