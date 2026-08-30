@@ -85,6 +85,16 @@ def collect_odds():
                         "price"
                     )
 
+       back_odds = float(odds)
+
+# Estimate lay as 2% above back price
+lay_odds = round(
+    back_odds * 1.02,
+    2
+)
+
+exchange_name = "Estimated Exchange"
+             
                     exchange_name = None
                     lay_odds = None
 
