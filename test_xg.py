@@ -1,7 +1,7 @@
 import requests
 import json
 
-API_FOOTBALL_KEY = "YOUR_API_KEY"
+API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
 
 headers = {
     "x-apisports-key": API_FOOTBALL_KEY
