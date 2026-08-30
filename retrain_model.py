@@ -121,6 +121,9 @@ def train_model():
         MODEL_FILE
     )
 
+    from database import save_model_run
+
+
     print(
         f"Model trained on {len(df)} rows"
     )
