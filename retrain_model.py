@@ -121,9 +121,15 @@ def train_model():
         MODEL_FILE
     )
 
-    from database import save_model_run
+from database import save_model_run
 
+    save_model_run( 
+    "ML_V1",
+    len(df),
+    "Historical + API model"
+)
 
+    
     print(
         f"Model trained on {len(df)} rows"
     )
