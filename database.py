@@ -273,15 +273,53 @@ def save_tracked_bet(
     conn.execute(
         """
         INSERT OR REPLACE INTO tracked_bets
-        VALUES (
+        (
+            id,
+
+            match_name,
+            team,
+            league,
+            kickoff,
+
+            back_odds,
+            lay_odds,
+
+            stake,
+
+            commission,
+
+            lay_stake,
+
+            liability,
+
+            qualifying_loss,
+
+            fta_pct,
+
+            ev_pct,
+
+            expected_profit,
+
+            actual_profit,
+
+            result,
+
+            model_version,
+
+            created_at
+        )
+
+        VALUES
+        (
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?,
-            ?
+            ?, ?, ?, ?
         )
         """,
         (
             data["id"],
+
             data["match_name"],
             data["team"],
             data["league"],
@@ -291,17 +329,26 @@ def save_tracked_bet(
             data["lay_odds"],
 
             data["stake"],
+
+            data["commission"],
+
             data["lay_stake"],
+
+            data["liability"],
 
             data["qualifying_loss"],
 
             data["fta_pct"],
+
             data["ev_pct"],
 
             data["expected_profit"],
+
             data["actual_profit"],
 
             data["result"],
+
+            data["model_version"],
 
             data["created_at"]
         )
@@ -345,6 +392,7 @@ def delete_tracked_bet(
     conn.commit()
     conn.close()
 
+
 def update_bet_result(
     bet_id,
     result,
@@ -357,8 +405,11 @@ def update_bet_result(
         """
         UPDATE tracked_bets
         SET
+
             result = ?,
+
             actual_profit = ?
+
         WHERE id = ?
         """,
         (
@@ -372,11 +423,49 @@ def update_bet_result(
     conn.close()
 
 
+def update_tracked_bet(
+    bet_id,
+    stake,
+    commission,
+    lay_stake,
+    liability
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        UPDATE tracked_bets
+        SET
+
+            stake = ?,
+
+            commission = ?,
+
+            lay_stake = ?,
+
+            liability = ?
+
+        WHERE id = ?
+        """,
+        (
+            stake,
+            commission,
+            lay_stake,
+            liability,
+            bet_id
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def get_performance_stats():
 
     conn = get_db()
 
-    row = conn.execute(
+    stats = conn.execute(
         """
         SELECT
 
@@ -398,8 +487,16 @@ def get_performance_stats():
 
     conn.close()
 
-    return row
+    return stats
 
+
+if __name__ == "__main__":
+
+    create_tables()
+
+    print(
+        "Database ready"
+    )
 
 
 if __name__ == "__main__":
