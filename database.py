@@ -572,12 +572,3 @@ if __name__ == "__main__":
     print(
         "Database ready"
     )
-
-
-if __name__ == "__main__":
-
-    create_tables()
-
-    print(
-        "Database ready"
-    )
