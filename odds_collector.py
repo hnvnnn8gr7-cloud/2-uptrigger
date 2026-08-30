@@ -3,7 +3,7 @@ import requests
 
 from database import get_db
 
-API_KEY = "YOUR_API_KEY"
+API_KEY = "ed558120078b3d4c23100523e979ce53"
 
 
 def collect_odds():
