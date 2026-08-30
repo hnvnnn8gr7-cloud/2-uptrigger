@@ -345,6 +345,62 @@ def delete_tracked_bet(
     conn.commit()
     conn.close()
 
+def update_bet_result(
+    bet_id,
+    result,
+    actual_profit
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        UPDATE tracked_bets
+        SET
+            result = ?,
+            actual_profit = ?
+        WHERE id = ?
+        """,
+        (
+            result,
+            actual_profit,
+            bet_id
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_performance_stats():
+
+    conn = get_db()
+
+    row = conn.execute(
+        """
+        SELECT
+
+            COUNT(*),
+
+            COALESCE(
+                SUM(expected_profit),
+                0
+            ),
+
+            COALESCE(
+                SUM(actual_profit),
+                0
+            )
+
+        FROM tracked_bets
+        """
+    ).fetchone()
+
+    conn.close()
+
+    return row
+
+
 
 if __name__ == "__main__":
 
