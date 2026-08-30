@@ -3,24 +3,29 @@ import requests
 
 from database import get_db
 
+# Replace with your actual Odds API key
 API_KEY = "ed558120078b3d4c23100523e979ce53"
 
 
 def collect_odds():
 
     url = (
-        f"https://api.the-odds-api.com/v4/"
-        f"sports/soccer/odds/"
+        f"https://api.the-odds-api.com/v4/sports/soccer/odds/"
         f"?apiKey={API_KEY}"
         f"&regions=uk,eu"
         f"&markets=h2h"
         f"&oddsFormat=decimal"
     )
 
-    response = requests.get(url, timeout=20)
+    response = requests.get(
+        url,
+        timeout=20
+    )
 
     if response.status_code != 200:
-        print(f"Error: {response.status_code}")
+        print(
+            f"Error fetching odds: {response.status_code}"
+        )
         return
 
     matches = response.json()
@@ -32,7 +37,10 @@ def collect_odds():
     for match in matches:
 
         match_id = match.get("id")
-        kickoff = match.get("commence_time")
+
+        kickoff = match.get(
+            "commence_time"
+        )
 
         league = match.get(
             "sport_title",
@@ -56,12 +64,7 @@ def collect_odds():
 
             bookmaker_name = bookmaker.get(
                 "title",
-                ""
-            )
-
-            bookmaker_key = bookmaker.get(
-                "key",
-                ""
+                "Unknown"
             )
 
             for market in bookmaker.get(
@@ -77,39 +80,25 @@ def collect_odds():
                     []
                 ):
 
-                    team = outcome.get(
+                    selection = outcome.get(
                         "name"
                     )
 
-                    odds = outcome.get(
-                        "price"
+                    back_odds = float(
+                        outcome.get(
+                            "price"
+                        )
                     )
 
-       back_odds = float(odds)
-
-# Estimate lay as 2% above back price
-lay_odds = round(
-    back_odds * 1.02,
-    2
-)
-
-exchange_name = "Estimated Exchange"
-             
-                    exchange_name = None
-                    lay_odds = None
-
-                    if bookmaker_key in [
-                        "betfair_ex",
-                        "smarkets",
-                        "matchbook"
-                    ]:
-                        exchange_name = bookmaker_name
-                        lay_odds = odds
+                    # Estimated lay price
+                    lay_odds = round(
+                        back_odds * 1.02,
+                        2
+                    )
 
                     conn.execute(
                         """
-                        INSERT INTO odds_history
-                        (
+                        INSERT INTO odds_history (
                             timestamp,
                             match_id,
                             kickoff,
@@ -122,10 +111,9 @@ exchange_name = "Estimated Exchange"
                             back_odds,
                             lay_odds
                         )
-
-                        VALUES
-
-                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        )
                         """,
                         (
                             datetime.now(
@@ -138,13 +126,13 @@ exchange_name = "Estimated Exchange"
                             home_team,
                             away_team,
 
-                            team,
+                            selection,
 
                             bookmaker_name,
 
-                            exchange_name,
+                            "Estimated Exchange",
 
-                            odds if not exchange_name else None,
+                            back_odds,
 
                             lay_odds
                         )
