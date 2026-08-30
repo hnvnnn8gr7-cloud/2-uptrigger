@@ -2,6 +2,8 @@ import os
 import subprocess
 import joblib
 import streamlit as st
+import pandas as pd
+
 
 from datetime import datetime
 
@@ -619,3 +621,191 @@ with tabsst.header(
                         )
 
                         st.rerun()
+
+with tabs```
+
+with the following:
+
+```python
+with tabsst.header(
+        "📈 Performance Dashboard"
+    )
+
+    bets = get_tracked_bets()
+
+    stats = get_performance_stats()
+
+    total_bets = stats[0]
+
+    expected_profit = round(
+        stats[1] or 0,
+        2
+    )
+
+    actual_profit = round(
+        stats[2] or 0,
+        2
+    )
+
+    roi = calculate_roi()
+
+    won_count = 0
+    lost_count = 0
+
+    for bet in bets:
+
+        result = bet[16]
+
+        if result == "Won":
+            won_count += 1
+
+        elif result == "Lost":
+            lost_count += 1
+
+    settled_bets = (
+        won_count +
+        lost_count
+    )
+
+    if settled_bets > 0:
+
+        win_rate = round(
+            (
+                won_count /
+                settled_bets
+            ) * 100,
+            2
+        )
+
+    else:
+
+        win_rate = 0
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+
+    with c1:
+
+        st.metric(
+            "Total Bets",
+            total_bets
+        )
+
+    with c2:
+
+        st.metric(
+            "Win Rate",
+            f"{win_rate}%"
+        )
+
+    with c3:
+
+        st.metric(
+            "Expected Profit",
+            f"£{expected_profit}"
+        )
+
+    with c4:
+
+        st.metric(
+            "Actual Profit",
+            f"£{actual_profit}"
+        )
+
+    with c5:
+
+        st.metric(
+            "ROI",
+            f"{roi}%"
+        )
+
+    st.markdown("---")
+
+    if bets:
+
+        dates = []
+        cumulative_expected = []
+        cumulative_actual = []
+
+        running_expected = 0
+        running_actual = 0
+
+        for bet in reversed(bets):
+
+            expected = float(
+                bet[14] or 0
+            )
+
+            actual = float(
+                bet[15] or 0
+            )
+
+            running_expected += expected
+            running_actual += actual
+
+            dates.append(
+                bet[18]
+            )
+
+            cumulative_expected.append(
+                running_expected
+            )
+
+            cumulative_actual.append(
+                running_actual
+            )
+
+        chart_df = pd.DataFrame(
+            {
+                "Expected Profit":
+                cumulative_expected,
+
+                "Actual Profit":
+                cumulative_actual
+            }
+        )
+
+        st.subheader(
+            "Expected vs Actual Profit"
+        )
+
+        st.line_chart(
+            chart_df
+        )
+
+    else:
+
+        st.info(
+            "No settled bets available."
+        )
+
+    st.markdown("---")
+
+    st.subheader(
+        "Results Breakdown"
+    )
+
+    b1, b2, b3 = st.columns(3)
+
+    with b1:
+
+        st.metric(
+            "Won",
+            won_count
+        )
+
+    with b2:
+
+        st.metric(
+            "Lost",
+            lost_count
+        )
+
+    with b3:
+
+        st.metric(
+            "Pending",
+            total_bets -
+            settled_bets
+        )
+
+
