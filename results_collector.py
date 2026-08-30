@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import sqlite3
 import requests
 
-API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
+API_FOOTBALL_KEY = "YOUR_API_KEY"
 
 DB_NAME = "two_up.db"
 
@@ -86,8 +86,7 @@ def get_completed_fixtures():
     yesterday = (
         datetime.now(
             timezone.utc
-        )
-        - timedelta(days=1)
+        ) - timedelta(days=1)
     ).strftime("%Y-%m-%d")
 
     url = (
@@ -154,6 +153,12 @@ def detect_2up_turnaround(
     home_2up = False
     away_2up = False
 
+    home_lead_minute = 0
+    away_lead_minute = 0
+
+    max_home_lead = 0
+    max_away_lead = 0
+
     for event in events:
 
         if event.get("type") != "Goal":
@@ -163,17 +168,47 @@ def detect_2up_turnaround(
             event["team"]["name"]
         )
 
+        minute = (
+            event["time"]["elapsed"]
+        )
+
         if scoring_team == home_team:
             home_score += 1
 
         elif scoring_team == away_team:
             away_score += 1
 
-        if home_score - away_score >= 2:
+        current_home_lead = (
+            home_score - away_score
+        )
+
+        current_away_lead = (
+            away_score - home_score
+        )
+
+        max_home_lead = max(
+            max_home_lead,
+            current_home_lead
+        )
+
+        max_away_lead = max(
+            max_away_lead,
+            current_away_lead
+        )
+
+        if current_home_lead >= 2:
+
             home_2up = True
 
-        if away_score - home_score >= 2:
+            if home_lead_minute == 0:
+                home_lead_minute = minute
+
+        if current_away_lead >= 2:
+
             away_2up = True
+
+            if away_lead_minute == 0:
+                away_lead_minute = minute
 
     final_home = home_score
     final_away = away_score
@@ -189,10 +224,15 @@ def detect_2up_turnaround(
     return (
         final_home,
         final_away,
+
         int(home_2up),
         int(away_2up),
+
         home_turnaround,
-        away_turnaround
+        away_turnaround,
+
+        home_lead_minute,
+        away_lead_minute
     )
 
 
@@ -201,12 +241,18 @@ def save_result(
     league,
     home_team,
     away_team,
+
     final_home,
     final_away,
+
     home_2up,
     away_2up,
+
     home_turnaround,
-    away_turnaround
+    away_turnaround,
+
+    home_lead_minute,
+    away_lead_minute
 ):
 
     conn = get_db()
@@ -219,17 +265,28 @@ def save_result(
             league,
             home_team,
             away_team,
+
             final_home,
             final_away,
+
             home_2up,
             away_2up,
+
             home_turnaround,
             away_turnaround,
+
+            home_lead_minute,
+            away_lead_minute,
+
             processed_at
         )
+
         VALUES
+
         (
-            ?,?,?,?,?,?,?,?,?,?,?
+            ?,?,?,?,?,?,
+            ?,?,?,?,?,?,
+            ?
         )
         """,
         (
@@ -237,12 +294,19 @@ def save_result(
             league,
             home_team,
             away_team,
+
             final_home,
             final_away,
+
             home_2up,
             away_2up,
+
             home_turnaround,
             away_turnaround,
+
+            home_lead_minute,
+            away_lead_minute,
+
             datetime.now(
                 timezone.utc
             ).isoformat()
