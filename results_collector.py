@@ -199,7 +199,10 @@ def process_results():
 
     fixtures = get_completed_fixtures()
 
+    fixtures = fixtures[:100]
+
     processed = 0
+
 
     for fixture in fixtures:
 
