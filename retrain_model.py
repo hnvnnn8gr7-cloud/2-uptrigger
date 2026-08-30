@@ -64,17 +64,28 @@ def train_model():
         "shots_against"
     ]
 
+    for col in features:
+
+        df[col] = pd.to_numeric(
+            df[col],
+            errors="coerce"
+        )
+
     df = df.fillna(0)
 
     X = df[features]
 
-    y = df["full_turnaround"]
+    y = pd.to_numeric(
+        df["full_turnaround"],
+        errors="coerce"
+    ).fillna(0)
 
     if "sample_weight" in df.columns:
 
-        weights = df[
-            "sample_weight"
-        ].fillna(1.0)
+        weights = pd.to_numeric(
+            df["sample_weight"],
+            errors="coerce"
+        ).fillna(1.0)
 
     else:
 
