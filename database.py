@@ -219,8 +219,23 @@ def create_tables():
     )
     """)
 
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS model_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        model_name TEXT,
+
+        trained_at TEXT,
+
+        training_rows INTEGER,
+
+        notes TEXT
+    )
+    """)
+
     conn.commit()
     conn.close()
+
 
 
 def save_setting(
