@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import sqlite3
 import requests
 
-API_FOOTBALL_KEY = "YOUR_API_KEY"
+API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
 
 DB_NAME = "two_up.db"
 
@@ -18,7 +18,7 @@ def get_db():
     )
 
 
-def create_processed_table():
+def create_processed_fixtures_table():
 
     conn = get_db()
 
@@ -63,6 +63,10 @@ def mark_fixture_processed(
         """
         INSERT OR REPLACE INTO
         processed_fixtures
+        (
+            fixture_id,
+            processed_at
+        )
         VALUES (?, ?)
         """,
         (
@@ -95,6 +99,10 @@ def get_completed_fixtures():
         url,
         headers=HEADERS,
         timeout=20
+    )
+
+    print(
+        f"Fixture request status: {response.status_code}"
     )
 
     data = response.json()
@@ -247,11 +255,12 @@ def save_result(
 
 def process_results():
 
-    create_processed_table()
+    create_processed_fixtures_table()
 
     fixtures = get_completed_fixtures()
 
     processed = 0
+    skipped = 0
 
     for fixture in fixtures:
 
@@ -262,7 +271,12 @@ def process_results():
         if fixture_already_processed(
             fixture_id
         ):
+            skipped += 1
             continue
+
+        league = (
+            fixture["league"]["name"]
+        )
 
         home_team = (
             fixture["teams"]["home"]["name"]
@@ -270,10 +284,6 @@ def process_results():
 
         away_team = (
             fixture["teams"]["away"]["name"]
-        )
-
-        league = (
-            fixture["league"]["name"]
         )
 
         print(
@@ -306,6 +316,10 @@ def process_results():
 
     print(
         f"{processed} new fixtures processed"
+    )
+
+    print(
+        f"{skipped} fixtures skipped"
     )
 
 
