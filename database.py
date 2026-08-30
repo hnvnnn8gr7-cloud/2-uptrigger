@@ -95,6 +95,10 @@ def create_tables():
 
         away_turnaround INTEGER,
 
+        home_lead_minute INTEGER,
+
+        away_lead_minute INTEGER,
+
         processed_at TEXT
     )
     """)
@@ -120,6 +124,16 @@ def create_tables():
         home_turnaround_pct REAL,
 
         away_turnaround_pct REAL,
+
+        historical_matches INTEGER,
+
+        historical_two_up INTEGER,
+
+        historical_comebacks INTEGER,
+
+        two_up_trigger_rate REAL,
+
+        historical_turnaround_rate REAL,
 
         matches_played INTEGER,
 
@@ -153,6 +167,10 @@ def create_tables():
 
         turnaround_pct REAL,
 
+        two_up_trigger_rate REAL,
+
+        historical_turnaround_rate REAL,
+
         lead_minute INTEGER,
 
         max_lead INTEGER,
@@ -169,6 +187,8 @@ def create_tables():
 
         shots_against INTEGER,
 
+        sample_weight REAL,
+
         full_turnaround INTEGER,
 
         created_at TEXT
@@ -178,7 +198,6 @@ def create_tables():
     conn.execute("""
     CREATE TABLE IF NOT EXISTS settings (
         setting_name TEXT PRIMARY KEY,
-
         setting_value TEXT
     )
     """)
@@ -186,7 +205,6 @@ def create_tables():
     conn.execute("""
     CREATE TABLE IF NOT EXISTS processed_fixtures (
         fixture_id TEXT PRIMARY KEY,
-
         processed_at TEXT
     )
     """)
