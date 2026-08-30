@@ -19,7 +19,66 @@ HEADERS = {
 }
 
 
-def detect_turnaround(
+def get_completed_fixtures():
+
+    yesterday = (
+        datetime.now(timezone.utc)
+        - timedelta(days=1)
+    ).strftime("%Y-%m-%d")
+
+    url = (
+        "https://v3.football.api-sports.io/"
+        f"fixtures?date={yesterday}&status=FT"
+    )
+
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=20
+    )
+
+    print(
+        f"Fixture request status: {response.status_code}"
+    )
+
+    data = response.json()
+
+    fixtures = data.get(
+        "response",
+        []
+    )
+
+    print(
+        f"Fixtures found: {len(fixtures)}"
+    )
+
+    return fixtures
+
+
+def get_fixture_events(
+    fixture_id
+):
+
+    url = (
+        "https://v3.football.api-sports.io/"
+        f"fixtures/events?fixture={fixture_id}"
+    )
+
+    response = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=20
+    )
+
+    data = response.json()
+
+    return data.get(
+        "response",
+        []
+    )
+
+
+def detect_2up(
     home_team,
     away_team,
     events
@@ -36,10 +95,13 @@ def detect_turnaround(
         if event.get("type") != "Goal":
             continue
 
-        scoring_team = event["team"]["name"]
+        scoring_team = (
+            event["team"]["name"]
+        )
 
         if scoring_team == home_team:
             home_score += 1
+
         elif scoring_team == away_team:
             away_score += 1
 
@@ -52,14 +114,13 @@ def detect_turnaround(
     final_home = home_score
     final_away = away_score
 
-    home_turnaround = 0
-    away_turnaround = 0
+    home_turnaround = int(
+        home_2up and final_home <= final_away
+    )
 
-    if home_2up and final_home <= final_away:
-        home_turnaround = 1
-
-    if away_2up and final_away <= final_home:
-        away_turnaround = 1
+    away_turnaround = int(
+        away_2up and final_away <= final_home
+    )
 
     return (
         final_home,
@@ -102,7 +163,9 @@ def save_result(
             away_turnaround,
             processed_at
         )
+
         VALUES
+
         (
             ?,?,?,?,?,?,?,?,?,?,?
         )
@@ -128,54 +191,9 @@ def save_result(
     conn.close()
 
 
-def get_yesterdays_fixtures():
-
-    yesterday = (
-        datetime.now(timezone.utc)
-        - timedelta(days=1)
-    ).strftime("%Y-%m-%d")
-
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures?date={yesterday}"
-    )
-
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=20
-    )
-
-    return response.json().get(
-        "response",
-        []
-    )
-
-
-def get_fixture_events(
-    fixture_id
-):
-
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures/events?fixture={fixture_id}"
-    )
-
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=20
-    )
-
-    return response.json().get(
-        "response",
-        []
-    )
-
-
 def process_results():
 
-    fixtures = get_yesterdays_fixtures()
+    fixtures = get_completed_fixtures()
 
     processed = 0
 
@@ -185,16 +203,16 @@ def process_results():
             fixture["fixture"]["id"]
         )
 
+        league = (
+            fixture["league"]["name"]
+        )
+
         home_team = (
             fixture["teams"]["home"]["name"]
         )
 
         away_team = (
             fixture["teams"]["away"]["name"]
-        )
-
-        league = (
-            fixture["league"]["name"]
         )
 
         events = get_fixture_events(
@@ -208,7 +226,7 @@ def process_results():
             away_2up,
             home_turnaround,
             away_turnaround
-        ) = detect_turnaround(
+        ) = detect_2up(
             home_team,
             away_team,
             events
@@ -235,5 +253,4 @@ def process_results():
 
 
 if __name__ == "__main__":
-
     process_results()
