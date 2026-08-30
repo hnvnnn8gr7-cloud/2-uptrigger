@@ -56,25 +56,34 @@ def train_model():
         "shots_against"
     ]
 
+    df = df.fillna(0)
+
     X = df[features]
 
     y = df["full_turnaround"]
 
+    weights = df["sample_weight"]
+
     model = XGBClassifier(
-        n_estimators=200,
-        max_depth=4,
-        learning_rate=0.05,
+        n_estimators=300,
+        max_depth=5,
+        learning_rate=0.03,
         random_state=42
     )
 
     model.fit(
         X,
-        y
+        y,
+        sample_weight=weights
     )
 
     joblib.dump(
         model,
         "fta_model.pkl"
+    )
+
+    print(
+        f"Model trained on {len(df)} rows"
     )
 
     print(
