@@ -249,3 +249,89 @@ def get_setting(
 def save_tracked_bet(
     data
 ):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO tracked_bets
+        VALUES (
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?
+        )
+        """,
+        (
+            data["id"],
+            data["match_name"],
+            data["team"],
+            data["league"],
+            data["kickoff"],
+
+            data["back_odds"],
+            data["lay_odds"],
+
+            data["stake"],
+            data["lay_stake"],
+
+            data["qualifying_loss"],
+
+            data["fta_pct"],
+            data["ev_pct"],
+
+            data["expected_profit"],
+            data["actual_profit"],
+
+            data["result"],
+
+            data["created_at"]
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_tracked_bets():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM tracked_bets
+        ORDER BY created_at DESC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def delete_tracked_bet(
+    bet_id
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        DELETE FROM tracked_bets
+        WHERE id = ?
+        """,
+        (bet_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+if __name__ == "__main__":
+
+    create_tables()
+
+    print(
+        "Database ready"
+    )
