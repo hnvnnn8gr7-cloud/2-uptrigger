@@ -60,36 +60,6 @@ def create_tables():
 """)
 
 
-    VALUES
-    (
-        ?, ?, ?, ?, ?,
-
-        ?,
-
-        ?, ?,
-
-        ?,
-
-        ?, ?,
-
-        ?, ?,
-
-        ?, ?,
-
-        ?, ?,
-
-        ?, ?,
-
-        ?, ?,
-
-        ?,
-
-        ?, ?
-    )
-    """)
-
-
-
     conn.execute("""
     CREATE TABLE IF NOT EXISTS team_aliases (
 
