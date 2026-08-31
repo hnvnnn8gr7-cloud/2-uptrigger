@@ -698,6 +698,127 @@ def delete_team_alias(
     conn.commit()
     conn.close()
 
+def save_odds_history(
+    match_id,
+    kickoff,
+    league,
+    home_team,
+    away_team,
+    selection,
+    bookmaker,
+    back_odds,
+    lay_odds=None,
+    exchange_name=None
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT INTO odds_history
+        (
+            timestamp,
+
+            match_id,
+            kickoff,
+
+            league,
+
+            home_team,
+            away_team,
+
+            selection,
+
+            bookmaker,
+            exchange_name,
+
+            back_odds,
+            lay_odds
+        )
+
+        VALUES
+        (
+            datetime('now'),
+
+            ?, ?, ?,
+
+            ?, ?,
+
+            ?,
+
+            ?, ?,
+
+            ?, ?
+        )
+        """,
+        (
+            match_id,
+            kickoff,
+            league,
+
+            home_team,
+            away_team,
+
+            selection,
+
+            bookmaker,
+            exchange_name,
+
+            back_odds,
+            lay_odds
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_latest_odds():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT
+
+            match_id,
+            kickoff,
+            league,
+
+            home_team,
+            away_team,
+
+            selection,
+
+            bookmaker,
+
+            back_odds
+
+        FROM odds_history
+
+        ORDER BY kickoff ASC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def clear_odds_history():
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        DELETE FROM odds_history
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+
 
 
 
