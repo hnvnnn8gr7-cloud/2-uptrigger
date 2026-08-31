@@ -6,7 +6,17 @@ from datetime import (
     timedelta
 )
 
+import sys
+from pathlib import Path
+
+sys.path.append(
+    str(
+        Path(__file__).resolve().parent.parent
+    )
+)
+
 from database import (
+
     save_odds_history,
     clear_odds_history
 )
