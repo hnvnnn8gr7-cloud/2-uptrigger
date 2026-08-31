@@ -17,9 +17,11 @@ def calculate_roi():
     )
 
     total_profit = sum(
-        bet[14] or 0
-        for bet in bets
-    )
+    float(bet[15] or 0)
+    if str(bet[15]).replace(".", "", 1).replace("-", "", 1).isdigit()
+    else 0
+    for bet in bets
+)
 
     if total_staked == 0:
 
