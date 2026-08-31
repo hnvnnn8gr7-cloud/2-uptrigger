@@ -32,7 +32,7 @@ from database import (
     get_performance_stats
 )
 
-from opportunities_engine import (
+from models.opportunities_engine import (
     build_opportunity,
     rebuild_opportunity
 )
