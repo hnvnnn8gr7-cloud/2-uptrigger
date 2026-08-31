@@ -168,11 +168,12 @@ with tab_bets:
         commission
     )
 
-    fta_profit = round(
-        liability +
-        (stake * (back_odds - 1)),
-        2
-    )
+    fta_profit = calculate_fta_profit(
+    stake,
+    back_odds,
+    lay_stake,
+    commission
+)
 
     m1, m2, m3, m4 = st.columns(4)
 
