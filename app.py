@@ -346,13 +346,16 @@ with tab3:
 
         for bet in bets:
 
-            with st.expander(
-                f"{bet[1]} | {bet[2]}"
-            ):
+    with st.expander(
+        f"{bet[1]} | {bet[2]}"
+    ):
 
-                st.write(
-                    f"Stake: £{bet[7]}"
-                )
+        st.write(bet)
+
+        st.write(
+            f"Stake: £{bet[7]}"
+        )
+
 
                 st.write(
                     f"Lay Stake: £{bet[9]}"
