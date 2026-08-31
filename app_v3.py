@@ -276,6 +276,9 @@ with tab_bets:
                 f"{bet['match_name']} | {bet['team']}"
             ):
 
+                st.json(bet)
+
+                
                 st.write(
                     f"Back Odds: {bet['back_odds']}"
                 )
