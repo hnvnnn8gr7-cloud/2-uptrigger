@@ -1,153 +1,413 @@
-from datetime import datetime, timezone
 import requests
+import time
+
+from datetime import (
+    datetime,
+    timedelta,
+    timezone
+)
 
 from database import get_db
 
-# Replace with your actual Odds API key
-API_KEY = "ed558120078b3d4c23100523e979ce53"
+from team_normalizer import (
+    normalize_team
+)
+
+from bookmakers import (
+    get_enabled_bookmakers
+)
+
+# ==================================
+# CONFIG
+# ==================================
+
+API_KEY = "cb23a6f3-5d30-47f1-8f0c-33137e430799"
+
+BASE_URL = "https://api.oddspapi.io/v4"
+
+SPORT_ID = 10
+
+LOOKAHEAD_DAYS = 7
+
+# ==================================
+# DATABASE
+# ==================================
+
+
+def save_odds_row(
+    match_id,
+    kickoff,
+    league,
+    home_team,
+    away_team,
+    selection,
+    bookmaker,
+    back_odds
+):
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT INTO odds_history
+        (
+            timestamp,
+
+            match_id,
+
+            kickoff,
+            league,
+
+            home_team,
+            away_team,
+
+            selection,
+
+            bookmaker,
+
+            exchange_name,
+
+            back_odds,
+
+            lay_odds
+        )
+
+        VALUES
+        (
+            ?,?,?,?,?,?,
+            ?,?,?,?,
+            ?
+        )
+        """,
+        (
+            datetime.now(
+                timezone.utc
+            ).isoformat(),
+
+            match_id,
+
+            kickoff,
+            league,
+
+            home_team,
+            away_team,
+
+            selection,
+
+            bookmaker,
+
+            None,
+
+            back_odds,
+
+            None
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def clear_existing_odds():
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        DELETE FROM odds_history
+        """
+    )
+
+    conn.commit()
+    conn.close()
+
+
+# ==================================
+# API HELPERS
+# ==================================
+
+
+def get_fixtures():
+
+    today = datetime.utcnow()
+
+    future = (
+        today +
+        timedelta(
+            days=LOOKAHEAD_DAYS
+        )
+    )
+
+    response = requests.get(
+        f"{BASE_URL}/fixtures",
+        params={
+            "sportId": SPORT_ID,
+            "from": today.strftime(
+                "%Y-%m-%d"
+            ),
+            "to": future.strftime(
+                "%Y-%m-%d"
+            ),
+            "statusId": 0,
+            "hasOdds": "true",
+            "apiKey": API_KEY
+        },
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+def get_fixture_odds(
+    fixture_id,
+    bookmaker
+):
+
+    response = requests.get(
+        f"{BASE_URL}/odds",
+        params={
+            "fixtureId": fixture_id,
+            "bookmakers": bookmaker,
+            "oddsFormat": "decimal",
+            "language": "en",
+            "verbosity": 3,
+            "apiKey": API_KEY
+        },
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return response.json()
+
+
+# ==================================
+# ODDS PARSER
+# ==================================
+
+
+def extract_match_odds(
+    odds_response,
+    bookmaker_key
+):
+
+    bookmaker_data = (
+        odds_response
+        .get(
+            "bookmakerOdds",
+            {}
+        )
+        .get(
+            bookmaker_key,
+            {}
+        )
+    )
+
+    if not bookmaker_data:
+        return []
+
+    markets = bookmaker_data.get(
+        "markets",
+        {}
+    )
+
+    opportunities = []
+
+    for market_id, market in markets.items():
+
+        outcomes = market.get(
+            "outcomes",
+            {}
+        )
+
+        for outcome_id, outcome in outcomes.items():
+
+            players = outcome.get(
+                "players",
+                {}
+            )
+
+            if not players:
+                continue
+
+            first_player = list(
+                players.values()
+            )[0]
+
+            odds = first_player.get(
+                "price"
+            )
+
+            outcome_code = (
+                first_player.get(
+                    "bookmakerOutcomeId"
+                )
+            )
+
+            opportunities.append(
+                {
+                    "outcome_code":
+                        outcome_code,
+
+                    "odds":
+                        odds
+                }
+            )
+
+    return opportunities
+
+
+# ==================================
+# MAIN COLLECTOR
+# ==================================
 
 
 def collect_odds():
 
-    url = (
-        f"https://api.the-odds-api.com/v4/sports/soccer/odds/"
-        f"?apiKey={API_KEY}"
-        f"&regions=uk,eu"
-        f"&markets=h2h"
-        f"&oddsFormat=decimal"
+    print(
+        "Collecting OddsPapi fixtures..."
     )
 
-    response = requests.get(
-        url,
-        timeout=20
+    clear_existing_odds()
+
+    fixtures = get_fixtures()
+
+    enabled_bookmakers = (
+        get_enabled_bookmakers()
     )
 
-    if response.status_code != 200:
-        print(
-            f"Error fetching odds: {response.status_code}"
-        )
-        return
+    saved_rows = 0
 
-    matches = response.json()
+    for fixture in fixtures:
 
-    conn = get_db()
+        fixture_id = fixture[
+            "fixtureId"
+        ]
 
-    rows_added = 0
+        kickoff = fixture[
+            "startTime"
+        ]
 
-    for match in matches:
+        league = fixture[
+            "tournamentName"
+        ]
 
-        match_id = match.get("id")
-
-        kickoff = match.get(
-            "commence_time"
-        )
-
-        league = match.get(
-            "sport_title",
-            "Unknown"
+        home_team = normalize_team(
+            fixture[
+                "participant1Name"
+            ]
         )
 
-        home_team = match.get(
-            "home_team",
-            ""
+        away_team = normalize_team(
+            fixture[
+                "participant2Name"
+            ]
         )
 
-        away_team = match.get(
-            "away_team",
-            ""
-        )
+        for bookmaker in enabled_bookmakers:
 
-        for bookmaker in match.get(
-            "bookmakers",
-            []
-        ):
+            try:
 
-            bookmaker_name = bookmaker.get(
-                "title",
-                "Unknown"
-            )
+                odds_data = (
+                    get_fixture_odds(
+                        fixture_id,
+                        bookmaker
+                    )
+                )
 
-            for market in bookmaker.get(
-                "markets",
-                []
-            ):
+                selections = (
+                    extract_match_odds(
+                        odds_data,
+                        bookmaker
+                    )
+                )
 
-                if market.get("key") != "h2h":
-                    continue
+                for selection in selections:
 
-                for outcome in market.get(
-                    "outcomes",
-                    []
-                ):
-
-                    selection = outcome.get(
-                        "name"
+                    outcome_code = (
+                        str(
+                            selection[
+                                "outcome_code"
+                            ]
+                        ).lower()
                     )
 
-                    back_odds = float(
-                        outcome.get(
-                            "price"
+                    if (
+                        outcome_code
+                        == "home"
+                    ):
+                        team = (
+                            home_team
+                        )
+
+                    elif (
+                        outcome_code
+                        == "away"
+                    ):
+                        team = (
+                            away_team
+                        )
+
+                    else:
+                        continue
+
+                    save_odds_row(
+                        match_id=
+                        fixture_id,
+
+                        kickoff=
+                        kickoff,
+
+                        league=
+                        league,
+
+                        home_team=
+                        home_team,
+
+                        away_team=
+                        away_team,
+
+                        selection=
+                        team,
+
+                        bookmaker=
+                        bookmaker,
+
+                        back_odds=
+                        float(
+                            selection[
+                                "odds"
+                            ]
                         )
                     )
 
-                    # Estimated lay price
-                    lay_odds = round(
-                        back_odds * 1.02,
-                        2
-                    )
+                    saved_rows += 1
 
-                    conn.execute(
-                        """
-                        INSERT INTO odds_history (
-                            timestamp,
-                            match_id,
-                            kickoff,
-                            league,
-                            home_team,
-                            away_team,
-                            selection,
-                            bookmaker,
-                            exchange_name,
-                            back_odds,
-                            lay_odds
-                        )
-                        VALUES (
-                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                        )
-                        """,
-                        (
-                            datetime.now(
-                                timezone.utc
-                            ).isoformat(),
+                time.sleep(
+                    0.5
+                )
 
-                            match_id,
-                            kickoff,
-                            league,
-                            home_team,
-                            away_team,
+            except Exception as exc:
 
-                            selection,
-
-                            bookmaker_name,
-
-                            "Estimated Exchange",
-
-                            back_odds,
-
-                            lay_odds
-                        )
-                    )
-
-                    rows_added += 1
-
-    conn.commit()
-
-    conn.close()
+                print(
+                    f"Failed "
+                    f"{fixture_id} "
+                    f"{bookmaker}: "
+                    f"{exc}"
+                )
 
     print(
-        f"{rows_added} rows stored"
+        f"Saved "
+        f"{saved_rows} "
+        f"odds rows"
     )
 
 
+# ==================================
+# RUN
+# ==================================
+
 if __name__ == "__main__":
+
     collect_odds()
