@@ -847,7 +847,7 @@ with tab_admin:
                 subprocess.run(
                     [
                         sys.executable,
-                        "training/update_turnaround_stats.py"
+                        "collectors/update_turnaround_stats.py"
                     ],
                     check=True
                 )
@@ -897,7 +897,7 @@ with tab_admin:
                 subprocess.run(
                     [
                         sys.executable,
-                        "training/retrain_model.py"
+                        "models/retrain_model.py"
                     ],
                     check=True
                 )
@@ -937,7 +937,7 @@ with tab_admin:
 
                 (
                     "Updating Team Stats",
-                    "training/update_turnaround_stats.py"
+                    "collectors/update_turnaround_stats.py"
                 ),
 
                 (
@@ -947,7 +947,7 @@ with tab_admin:
 
                 (
                     "Retraining Model",
-                    "training/retrain_model.py"
+                    "models/retrain_model.py"
                 )
             ]
 
