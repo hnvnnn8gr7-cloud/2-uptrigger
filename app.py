@@ -1,9 +1,10 @@
 import os
+import uuid
 import subprocess
 import joblib
-import streamlit as st
-import pandas as pd
 
+import pandas as pd
+import streamlit as st
 
 from datetime import datetime
 
@@ -11,12 +12,11 @@ from database import (
     create_tables,
     get_db,
     get_tracked_bets,
+    save_tracked_bet,
+    delete_tracked_bet,
+    update_bet_result,
     get_performance_stats,
     get_model_runs
-)
-
-from performance import (
-    calculate_roi
 )
 
 from calculations import (
@@ -25,12 +25,18 @@ from calculations import (
     calculate_qualifying_loss
 )
 
-from database import (
-    save_tracked_bet,
-    update_bet_result,
-    delete_tracked_bet
+from performance import (
+    calculate_roi
 )
 
+from model import (
+    calculate_hybrid_fta,
+    calculate_ev
+)
+
+# ----------------------------------
+# INITIALISE
+# ----------------------------------
 
 create_tables()
 
@@ -46,9 +52,9 @@ st.title(
     "⚽ 2UP Master V2"
 )
 
-# ===================================
+# ----------------------------------
 # SIDEBAR
-# ===================================
+# ----------------------------------
 
 st.sidebar.header(
     "Filters"
@@ -56,36 +62,38 @@ st.sidebar.header(
 
 min_fta = st.sidebar.slider(
     "Minimum FTA %",
-    0,
-    100,
-    0
+    min_value=0,
+    max_value=100,
+    value=0
+)
+
+max_fta = st.sidebar.slider(
+    "Maximum FTA %",
+    min_value=0,
+    max_value=100,
+    value=100
 )
 
 min_ev = st.sidebar.slider(
     "Minimum EV %",
-    0,
-    200,
-    100
+    min_value=0,
+    max_value=200,
+    value=100
 )
 
 if st.sidebar.button(
     "Reset Filters"
 ):
-
     st.rerun()
 
-# ===================================
+# ----------------------------------
 # MODEL STATUS
-# ===================================
+# ----------------------------------
 
-if os.path.exists(
-    MODEL_FILE
-):
+if os.path.exists(MODEL_FILE):
 
     modified = datetime.fromtimestamp(
-        os.path.getmtime(
-            MODEL_FILE
-        )
+        os.path.getmtime(MODEL_FILE)
     )
 
     st.success(
@@ -95,14 +103,14 @@ if os.path.exists(
 else:
 
     st.warning(
-        "No trained model found"
+        "No trained model found."
     )
 
-# ===================================
-# TABS
-# ===================================
+# ----------------------------------
+# CREATE TABS
+# ----------------------------------
 
-tabs = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     [
         "⚡ Opportunities",
         "⭐ Best Bets",
@@ -113,16 +121,14 @@ tabs = st.tabs(
     ]
 )
 
-# ===================================
+# ==================================
 # OPPORTUNITIES
-# ===================================
+# ==================================
 
-with tabs[0]:
-    st.header("⚡ Opportunities")
+with tab1:
 
-
-    st.info(
-        "Will populate automatically when odds_history contains data."
+    st.header(
+        "⚡ Opportunities"
     )
 
     conn = get_db()
@@ -141,234 +147,31 @@ with tabs[0]:
         odds_count
     )
 
-# ===================================
+    st.info(
+        "Opportunities will populate automatically when odds_history contains live data."
+    )
+
+# ==================================
 # BEST BETS
-# ===================================
+# ==================================
 
-with tabs[1]:
-    st.header("⭐ Best Bets")
+with tab2:
 
-    
+    st.header(
+        "⭐ Best Bets"
+    )
+
     st.info(
         "Best EV opportunities will appear here."
     )
 
-# ===================================
+# ==================================
 # TRACKED BETS
-# ===================================
+# ==================================
 
-with tabs[2]:
-    st.header("📌 Tracked Bets")
+with tab3:
 
-
-    bets = get_tracked_bets()
-
-    if not bets:
-
-        st.info(
-            "No tracked bets yet."
-        )
-
-    else:
-
-        for bet in bets:
-
-            st.write(bet)
-
-# ===================================
-# PERFORMANCE
-# ===================================
-
-with tabs[3]:
-
-    st.header("📈 Performance")
-
-
-    stats = get_performance_stats()
-
-    total_bets = stats[0]
-
-    expected_profit = round(
-        stats[1],
-        2
-    )
-
-    actual_profit = round(
-        stats[2],
-        2
-    )
-
-    roi = calculate_roi()
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-
-        st.metric(
-            "Total Bets",
-            total_bets
-        )
-
-    with c2:
-
-        st.metric(
-            "Expected Profit",
-            f"£{expected_profit}"
-        )
-
-    with c3:
-
-        st.metric(
-            "Actual Profit",
-            f"£{actual_profit}"
-        )
-
-    with c4:
-
-        st.metric(
-            "ROI %",
-            f"{roi}%"
-        )
-
-# ===================================
-# MODEL LAB
-# ===================================
-
-
-
-with tabs[4]:
-
-    st.header("🧪 Model Lab")
-
-
-    model_runs = get_model_runs()
-
-    if not model_runs:
-
-        st.info(
-            "No model runs recorded."
-        )
-
-    else:
-
-        for run in model_runs:
-
-            st.write(run)
-
-# ===================================
-# MODEL CONTROLS
-# ===================================
-
-with tabs[5]:
-
-    st.header("🤖 Model Controls")
-
-
-    if st.button(
-        "🔄 Retrain Model"
-    ):
-
-        with st.spinner(
-            "Training..."
-        ):
-
-            result = subprocess.run(
-                [
-                    "venv/bin/python",
-                    "retrain_model.py"
-                ],
-                capture_output=True,
-                text=True
-            )
-
-            if result.stdout:
-
-                st.success(
-                    "Training Complete"
-                )
-
-                st.code(
-                    result.stdout
-                )
-
-            if result.stderr:
-
-                st.error(
-                    result.stderr
-                )
-
-    st.markdown("---")
-
-    conn = get_db()
-
-    teams = conn.execute(
-        """
-        SELECT team
-        FROM team_stats
-        ORDER BY team
-        """
-    ).fetchall()
-
-    conn.close()
-
-    if teams:
-
-        team_list = [
-            row[0]
-            for row in teams
-        ]
-
-        selected_team = st.selectbox(
-            "Team Profile",
-            team_list
-        )
-
-        conn = get_db()
-
-        team_data = conn.execute(
-            """
-            SELECT
-                avg_xg,
-                avg_xga,
-                turnaround_pct,
-                two_up_trigger_rate,
-                historical_turnaround_rate
-            FROM team_stats
-            WHERE team = ?
-            """,
-            (selected_team,)
-        ).fetchone()
-
-        conn.close()
-
-        if team_data:
-
-            st.write(
-                f"Average xG: {team_data[0]}"
-            )
-
-            st.write(
-                f"Average xGA: {team_data[1]}"
-            )
-
-            st.write(
-                f"Turnaround %: {team_data[2]}"
-            )
-
-            st.write(
-                f"2UP Trigger Rate: {team_data[3]}"
-            )
-
-            st.write(
-                f"Historical Turnaround Rate: {team_data[4]}"
-            )
-
-with tabs```
-
-section with this:
-
-```python
-with tabsst.header(
+    st.header(
         "📌 Tracked Bets"
     )
 
@@ -384,21 +187,22 @@ with tabsst.header(
             "Match Name"
         )
 
-        team = st.text_input(
+        team_name = st.text_input(
             "Team"
         )
 
         back_odds = st.number_input(
             "Back Odds",
             min_value=1.01,
-            value=4.0,
-            key="track_back_odds"
+            value=4.00,
+            key="tb_back_odds"
         )
 
         stake = st.number_input(
             "Stake (£)",
             min_value=1.0,
-            value=10.0
+            value=10.0,
+            key="tb_stake"
         )
 
     with col2:
@@ -406,8 +210,8 @@ with tabsst.header(
         lay_odds = st.number_input(
             "Lay Odds",
             min_value=1.01,
-            value=4.2,
-            key="track_lay_odds"
+            value=4.20,
+            key="tb_lay_odds"
         )
 
         commission = st.number_input(
@@ -437,33 +241,33 @@ with tabsst.header(
         lay_stake
     )
 
-    qualifying_loss = calculate_qualifying_loss(
-        back_odds,
-        lay_odds,
-        stake,
-        lay_stake,
-        commission
+    qualifying_loss = (
+        calculate_qualifying_loss(
+            back_odds,
+            lay_odds,
+            stake,
+            lay_stake,
+            commission
+        )
     )
 
-    st.markdown("---")
+    m1, m2, m3 = st.columns(3)
 
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
+    with m1:
 
         st.metric(
             "Lay Stake",
             f"£{lay_stake}"
         )
 
-    with c2:
+    with m2:
 
         st.metric(
             "Liability",
             f"£{liability}"
         )
 
-    with c3:
+    with m3:
 
         st.metric(
             "Qualifying Loss",
@@ -474,8 +278,6 @@ with tabsst.header(
         "⭐ Save Bet"
     ):
 
-        import uuid
-
         save_tracked_bet(
             {
                 "id": str(
@@ -483,11 +285,15 @@ with tabsst.header(
                 ),
 
                 "match_name": match_name,
-                "team": team,
+
+                "team": team_name,
+
                 "league": "",
+
                 "kickoff": "",
 
                 "back_odds": back_odds,
+
                 "lay_odds": lay_odds,
 
                 "stake": stake,
@@ -524,16 +330,16 @@ with tabsst.header(
 
     st.markdown("---")
 
-    bets = get_tracked_bets()
-
     st.subheader(
-        "Tracked Bets"
+        "Saved Bets"
     )
+
+    bets = get_tracked_bets()
 
     if not bets:
 
         st.info(
-            "No tracked bets saved."
+            "No tracked bets yet."
         )
 
     else:
@@ -543,14 +349,6 @@ with tabsst.header(
             with st.expander(
                 f"{bet[1]} | {bet[2]}"
             ):
-
-                st.write(
-                    f"Back Odds: {bet[5]}"
-                )
-
-                st.write(
-                    f"Lay Odds: {bet[6]}"
-                )
 
                 st.write(
                     f"Stake: £{bet[7]}"
@@ -572,11 +370,9 @@ with tabsst.header(
                     f"Result: {bet[16]}"
                 )
 
-                col_a, col_b, col_c = st.columns(
-                    3
-                )
+                a, b, c = st.columns(3)
 
-                with col_a:
+                with a:
 
                     if st.button(
                         "✅ Won",
@@ -595,7 +391,7 @@ with tabsst.header(
 
                         st.rerun()
 
-                with col_b:
+                with b:
 
                     if st.button(
                         "❌ Lost",
@@ -614,7 +410,7 @@ with tabsst.header(
 
                         st.rerun()
 
-                with col_c:
+                with c:
 
                     if st.button(
                         "🗑 Delete",
@@ -627,12 +423,14 @@ with tabsst.header(
 
                         st.rerun()
 
-with tabs```
 
-with the following:
+# ==================================
+# PERFORMANCE
+# ==================================
 
-```python
-with tabsst.header(
+with tab4:
+
+    st.header(
         "📈 Performance Dashboard"
     )
 
@@ -725,52 +523,76 @@ with tabsst.header(
 
     st.markdown("---")
 
-    if bets:
+    pending_bets = (
+        total_bets -
+        settled_bets
+    )
 
-        dates = []
-        cumulative_expected = []
-        cumulative_actual = []
+    p1, p2, p3 = st.columns(3)
 
-        running_expected = 0
+    with p1:
+
+        st.metric(
+            "Won",
+            won_count
+        )
+
+    with p2:
+
+        st.metric(
+            "Lost",
+            lost_count
+        )
+
+    with p3:
+
+        st.metric(
+            "Pending",
+            pending_bets
+        )
+
+    st.markdown("---")
+
+    if len(bets) > 0:
+
         running_actual = 0
+        running_expected = 0
 
-        for bet in reversed(bets):
+        actual_curve = []
+        expected_curve = []
 
-            expected = float(
+        for bet in reversed(
+            bets
+        ):
+
+            running_expected += float(
                 bet[14] or 0
             )
 
-            actual = float(
+            running_actual += float(
                 bet[15] or 0
             )
 
-            running_expected += expected
-            running_actual += actual
-
-            dates.append(
-                bet[18]
-            )
-
-            cumulative_expected.append(
+            expected_curve.append(
                 running_expected
             )
 
-            cumulative_actual.append(
+            actual_curve.append(
                 running_actual
             )
 
         chart_df = pd.DataFrame(
             {
                 "Expected Profit":
-                cumulative_expected,
+                expected_curve,
 
                 "Actual Profit":
-                cumulative_actual
+                actual_curve
             }
         )
 
         st.subheader(
-            "Expected vs Actual Profit"
+            "Expected vs Actual"
         )
 
         st.line_chart(
@@ -780,45 +602,36 @@ with tabsst.header(
     else:
 
         st.info(
-            "No settled bets available."
+            "No performance data yet."
         )
 
     st.markdown("---")
 
     st.subheader(
-        "Results Breakdown"
+        "Current Summary"
     )
 
-    b1, b2, b3 = st.columns(3)
+    if actual_profit > 0:
 
-    with b1:
-
-        st.metric(
-            "Won",
-            won_count
+        st.success(
+            f"Overall Profit: £{actual_profit}"
         )
 
-    with b2:
+    elif actual_profit < 0:
 
-        st.metric(
-            "Lost",
-            lost_count
+        st.error(
+            f"Overall Loss: £{actual_profit}"
         )
 
-    with b3:
+    else:
 
-        st.metric(
-            "Pending",
-            total_bets -
-            settled_bets
+        st.info(
+            "Break Even"
         )
 
-with tabs```
+with tab5:
 
-with:
-
-```python
-with tabsst.header(
+    st.header(
         "🧪 Model Lab"
     )
 
@@ -854,93 +667,441 @@ with tabsst.header(
 
         st.markdown("---")
 
-        latest_models = (
-            model_df["Model"]
-            .unique()
-            .tolist()
+        st.subheader(
+            "Latest Run"
         )
 
-        if latest_models:
+        latest = model_runs[0]
 
-            model_a = st.selectbox(
-                "Model A",
-                latest_models,
-                key="model_a"
+        c1, c2, c3 = st.columns(3)
+
+        with c1:
+
+            st.metric(
+                "Model",
+                latest[1]
             )
 
-            model_b = st.selectbox(
-                "Model B",
-                latest_models,
-                key="model_b"
+        with c2:
+
+            st.metric(
+                "Training Rows",
+                latest[3]
             )
 
-            st.markdown("---")
+        with c3:
 
-            col1, col2 = st.columns(2)
+            st.metric(
+                "Run ID",
+                latest[0]
+            )
 
-            with col1:
+        st.write(
+            f"Training Date: {latest[2]}"
+        )
 
-                st.metric(
-                    "Model A",
-                    model_a
-                )
-
-            with col2:
-
-                st.metric(
-                    "Model B",
-                    model_b
-                )
+        st.write(
+            f"Notes: {latest[4]}"
+        )
 
         st.markdown("---")
 
-        champion_model = st.selectbox(
-            "Champion Model",
-            latest_models,
-            key="champion"
+        available_models = sorted(
+            list(
+                set(
+                    model_df["Model"]
+                )
+            )
         )
 
-        st.success(
-            f"Current Champion: {champion_model}"
+        st.subheader(
+            "Model Comparison"
         )
+
+        model_a = st.selectbox(
+            "Model A",
+            available_models,
+            key="model_a"
+        )
+
+        model_b = st.selectbox(
+            "Model B",
+            available_models,
+            key="model_b"
+        )
+
+        compare_col1, compare_col2 = st.columns(2)
+
+        with compare_col1:
+
+            st.success(
+                f"Model A: {model_a}"
+            )
+
+        with compare_col2:
+
+            st.info(
+                f"Model B: {model_b}"
+            )
 
         st.markdown("---")
 
         st.subheader(
-            "Model Statistics"
+            "Champion Model"
         )
 
-        latest_run = model_runs[0]
-
-        st.write(
-            f"Model: {latest_run[1]}"
+        champion = st.selectbox(
+            "Active Model",
+            available_models,
+            key="champion_model"
         )
 
-        st.write(
-            f"Trained: {latest_run[2]}"
-        )
-
-        st.write(
-            f"Training Rows: {latest_run[3]}"
-        )
-
-        st.write(
-            f"Notes: {latest_run[4]}"
+        st.success(
+            f"Champion Model: {champion}"
         )
 
         st.markdown("---")
 
         if os.path.exists(
-            "fta_model.pkl"
+            MODEL_FILE
         ):
 
-            modified = datetime.fromtimestamp(
+            model_modified = datetime.fromtimestamp(
                 os.path.getmtime(
-                    "fta_model.pkl"
+                    MODEL_FILE
                 )
             )
 
             st.info(
-                f"Latest model file updated: {modified}"
+                f"Current model file updated: {model_modified}"
             )
+
+            file_size = round(
+                os.path.getsize(
+                    MODEL_FILE
+                ) / 1024,
+                2
+            )
+
+            st.write(
+                f"Model Size: {file_size} KB"
+            )
+
+        st.markdown("---")
+
+        st.subheader(
+            "Future Comparison Metrics"
+        )
+
+        st.write(
+            "ROI comparison coming in V3."
+        )
+
+        st.write(
+            "Win rate comparison coming in V3."
+        )
+
+        st.write(
+            "Feature importance viewer coming in V3."
+        )
+
+        st.write(
+            "Backtesting suite coming in V3."
+        )
+
+with tab6:
+
+    st.header(
+        "🤖 Model Controls"
+    )
+
+    st.subheader(
+        "Model Management"
+    )
+
+    if st.button(
+        "🔄 Retrain Model"
+    ):
+
+        with st.spinner(
+            "Retraining model..."
+        ):
+
+            result = subprocess.run(
+                [
+                    "venv/bin/python",
+                    "retrain_model.py"
+                ],
+                capture_output=True,
+                text=True
+            )
+
+            if result.stdout:
+
+                st.success(
+                    "Training complete"
+                )
+
+                st.code(
+                    result.stdout
+                )
+
+            if result.stderr:
+
+                st.error(
+                    result.stderr
+                )
+
+    st.markdown("---")
+
+    st.subheader(
+        "Model Diagnostics"
+    )
+
+    if os.path.exists(
+        MODEL_FILE
+    ):
+
+        modified = datetime.fromtimestamp(
+            os.path.getmtime(
+                MODEL_FILE
+            )
+        )
+
+        size_kb = round(
+            os.path.getsize(
+                MODEL_FILE
+            ) / 1024,
+            2
+        )
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+
+            st.metric(
+                "Model Size",
+                f"{size_kb} KB"
+            )
+
+        with c2:
+
+            st.metric(
+                "Last Updated",
+                modified.strftime(
+                    "%Y-%m-%d"
+                )
+            )
+
+    else:
+
+        st.error(
+            "Model file not found."
+        )
+
+    st.markdown("---")
+
+    st.subheader(
+        "Team Profile Explorer"
+    )
+
+    conn = get_db()
+
+    teams = conn.execute(
+        """
+        SELECT team
+        FROM team_stats
+        ORDER BY team
+        """
+    ).fetchall()
+
+    if teams:
+
+        team_list = [
+            row[0]
+            for row in teams
+        ]
+
+        selected_team = st.selectbox(
+            "Select Team",
+            team_list,
+            key="team_explorer"
+        )
+
+        data = conn.execute(
+            """
+            SELECT
+
+                avg_xg,
+                avg_xga,
+
+                goals_last5,
+                conceded_last5,
+
+                turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate
+
+            FROM team_stats
+
+            WHERE team = ?
+            """,
+            (
+                selected_team,
+            )
+        ).fetchone()
+
+        if data:
+
+            t1, t2, t3 = st.columns(3)
+
+            with t1:
+
+                st.metric(
+                    "Avg xG",
+                    round(
+                        data[0] or 0,
+                        2
+                    )
+                )
+
+                st.metric(
+                    "Avg xGA",
+                    round(
+                        data[1] or 0,
+                        2
+                    )
+                )
+
+            with t2:
+
+                st.metric(
+                    "Goals Last 5",
+                    data[2] or 0
+                )
+
+                st.metric(
+                    "Conceded Last 5",
+                    data[3] or 0
+                )
+
+            with t3:
+
+                st.metric(
+                    "Turnaround %",
+                    round(
+                        data[4] or 0,
+                        2
+                    )
+                )
+
+                st.metric(
+                    "2UP Trigger %",
+                    round(
+                        data[5] or 0,
+                        2
+                    )
+                )
+
+    conn.close()
+
+    st.markdown("---")
+
+    st.subheader(
+        "Database Health"
+    )
+
+    conn = get_db()
+
+    team_count = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM team_stats
+        """
+    ).fetchone()[0]
+
+    training_count = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM training_data
+        """
+    ).fetchone()[0]
+
+    odds_count = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM odds_history
+        """
+    ).fetchone()[0]
+
+    result_count = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM match_results
+        """
+    ).fetchone()[0]
+
+    conn.close()
+
+    d1, d2, d3, d4 = st.columns(4)
+
+    with d1:
+
+        st.metric(
+            "Teams",
+            team_count
+        )
+
+    with d2:
+
+        st.metric(
+            "Training Rows",
+            training_count
+        )
+
+    with d3:
+
+        st.metric(
+            "Odds Records",
+            odds_count
+        )
+
+    with d4:
+
+        st.metric(
+            "Match Results",
+            result_count
+        )
+
+    st.markdown("---")
+
+    st.subheader(
+        "System Status"
+    )
+
+    if odds_count == 0:
+
+        st.warning(
+            "Odds API data not currently available."
+        )
+
+    else:
+
+        st.success(
+            "Odds data available."
+        )
+
+    if training_count > 0:
+
+        st.success(
+            "Training dataset ready."
+        )
+
+    else:
+
+        st.error(
+            "Training dataset empty."
+        )
 
