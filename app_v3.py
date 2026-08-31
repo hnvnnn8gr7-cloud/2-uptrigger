@@ -13,8 +13,10 @@ from database import (
 from calculations import (
     calculate_lay_stake,
     calculate_liability,
-    calculate_qualifying_loss
+    calculate_qualifying_loss,
+    calculate_fta_profit
 )
+
 
 BET_COLUMNS = [
     "id",
