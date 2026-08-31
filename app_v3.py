@@ -3,8 +3,17 @@ import streamlit as st
 import subprocess
 import sys
 import matplotlib.pyplot as plt
+import uuid
 
 
+from datetime import datetime
+
+from database import (
+    get_latest_odds,
+    get_tracked_bets,
+    get_performance_stats,
+    save_tracked_bet
+)
 
 from calculations import (
     calculate_lay_stake,
@@ -253,6 +262,134 @@ with tab_opps:
                     "Qualifying Loss",
                     f"£{updated['qualifying_loss']}"
                 )
+if st.button(
+                    "📌 Track Bet",
+                    key=f"track_{i}"
+                ):
+
+                    bet_data = {
+
+                        "id":
+                            str(
+                                uuid.uuid4()
+                            ),
+
+                        "match_name":
+                            updated[
+                                "match"
+                            ],
+
+                        "team":
+                            updated[
+                                "team"
+                            ],
+
+                        "league":
+                            updated[
+                                "league"
+                            ],
+
+                        "kickoff":
+                            "",
+
+                        "bookmaker":
+                            updated[
+                                "bookmaker"
+                            ],
+
+                        "back_odds":
+                            updated[
+                                "back_odds"
+                            ],
+
+                        "lay_odds":
+                            updated[
+                                "lay_odds"
+                            ],
+
+                        "estimated_lay":
+                            int(
+                                updated[
+                                    "estimated_lay"
+                                ]
+                            ),
+
+                        "stake":
+                            updated[
+                                "stake"
+                            ],
+
+                        "commission":
+                            updated[
+                                "commission"
+                            ],
+
+                        "lay_stake":
+                            updated[
+                                "lay_stake"
+                            ],
+
+                        "liability":
+                            updated[
+                                "liability"
+                            ],
+
+                        "qualifying_loss":
+                            updated[
+                                "qualifying_loss"
+                            ],
+
+                        "outcome_fta":
+                            updated[
+                                "fta_profit"
+                            ],
+
+                        "fta_pct":
+                            updated[
+                                "fta_pct"
+                            ],
+
+                        "ev_pct":
+                            updated[
+                                "ev_percent"
+                            ],
+
+                        "expected_profit":
+                            updated[
+                                "expected_profit"
+                            ],
+
+                        "actual_profit":
+                            None,
+
+                        "actual_fta":
+                            None,
+
+                        "status":
+                            "Pending",
+
+                        "result":
+                            None,
+
+                        "model_version":
+                            "V3",
+
+                        "created_at":
+                            datetime.now().isoformat(),
+
+                        "settled_at":
+                            None
+                    }
+
+                    save_tracked_bet(
+                        bet_data
+                    )
+
+                    st.success(
+                        "Bet tracked successfully."
+                    )
+
+
 
 # ==================================
 # TRACKING
