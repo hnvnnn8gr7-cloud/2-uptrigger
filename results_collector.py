@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import sqlite3
 import requests
 
-API_FOOTBALL_KEY = "YOUR_API_KEY"
+API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
 
 DB_NAME = "two_up.db"
 
