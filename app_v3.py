@@ -1,5 +1,10 @@
 import pandas as pd
 import streamlit as st
+import subprocess
+import sys
+import matplotlib.pyplot as plt
+
+
 
 from calculations import (
     calculate_lay_stake,
@@ -49,12 +54,13 @@ st.caption(
 # TABS
 # ==================================
 
-tab_opps, tab_tracking, tab_calc, tab_perf = st.tabs(
+tab_opps, tab_tracking, tab_calc, tab_perf, tab_admin = st.tabs(
     [
         "⚡ Opportunities",
         "📌 Tracking",
         "🧮 Calculator",
-        "📈 Performance"
+        "📈 Performance",
+        "⚙️ Admin"
     ]
 )
 
@@ -521,3 +527,330 @@ with tab_perf:
         "Won / Lost",
         f"{won_bets}/{lost_bets}"
     )
+
+st.markdown("---")
+
+    st.subheader(
+        "📈 Expected Profit vs Actual Profit"
+    )
+
+    expected_running = 0
+    actual_running = 0
+
+    expected_curve = []
+    actual_curve = []
+
+    settled_count = []
+
+    counter = 0
+
+    for row in tracked_bets:
+
+        expected_profit_row = row[17]
+        actual_profit_row = row[18]
+
+        if actual_profit_row is None:
+            continue
+
+        counter += 1
+
+        expected_running += (
+            expected_profit_row or 0
+        )
+
+        actual_running += (
+            actual_profit_row or 0
+        )
+
+        settled_count.append(
+            counter
+        )
+
+        expected_curve.append(
+            expected_running
+        )
+
+        actual_curve.append(
+            actual_running
+        )
+
+    if expected_curve:
+
+        variance = (
+            actual_running -
+            expected_running
+        )
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "Expected Total",
+            f"£{expected_running:.2f}"
+        )
+
+        c2.metric(
+            "Actual Total",
+            f"£{actual_running:.2f}"
+        )
+
+        c3.metric(
+            "Variance",
+            f"£{variance:.2f}"
+        )
+
+        fig, ax = plt.subplots(
+            figsize=(12, 6)
+        )
+
+        ax.plot(
+            settled_count,
+            expected_curve,
+            color="blue",
+            linewidth=2,
+            label="Expected Profit"
+        )
+
+        ax.plot(
+            settled_count,
+            actual_curve,
+            color="green",
+            linewidth=2,
+            label="Actual Profit"
+        )
+
+        ax.axhline(
+            y=0,
+            color="grey",
+            linestyle="--"
+        )
+
+        ax.set_title(
+            "Cumulative Expected vs Actual Profit"
+        )
+
+        ax.set_xlabel(
+            "Settled Bets"
+        )
+
+        ax.set_ylabel(
+            "Profit (£)"
+        )
+
+        ax.legend()
+
+        ax.grid(
+            True,
+            alpha=0.3
+        )
+
+        st.pyplot(fig)
+
+
+# ==================================
+# ADMIN
+# ==================================
+
+with tab_admin:
+
+    st.header(
+        "⚙️ Admin"
+    )
+
+    st.subheader(
+        "Data Collection"
+    )
+
+    if st.button(
+        "🔄 Refresh Odds"
+    ):
+
+        with st.spinner(
+            "Collecting OddsPapi data..."
+        ):
+
+            try:
+
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "collectors/odds_collector.py"
+                    ],
+                    check=True
+                )
+
+                st.success(
+                    "Odds refreshed successfully."
+                )
+
+            except Exception as exc:
+
+                st.error(
+                    str(exc)
+                )
+
+    st.markdown("---")
+
+    st.subheader(
+        "Machine Learning"
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        if st.button(
+            "📊 Update Team Stats"
+        ):
+
+            try:
+
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "training/update_turnaround_stats.py"
+                    ],
+                    check=True
+                )
+
+                st.success(
+                    "Team stats updated."
+                )
+
+            except Exception as exc:
+
+                st.error(
+                    str(exc)
+                )
+
+        if st.button(
+            "🏗 Build Training Data"
+        ):
+
+            try:
+
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "training/build_training_data.py"
+                    ],
+                    check=True
+                )
+
+                st.success(
+                    "Training data rebuilt."
+                )
+
+            except Exception as exc:
+
+                st.error(
+                    str(exc)
+                )
+
+    with col2:
+
+        if st.button(
+            "🤖 Retrain Model"
+        ):
+
+            try:
+
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "training/retrain_model.py"
+                    ],
+                    check=True
+                )
+
+                st.success(
+                    "Model retrained."
+                )
+
+            except Exception as exc:
+
+                st.error(
+                    str(exc)
+                )
+
+    st.markdown("---")
+
+    st.subheader(
+        "Full Refresh Pipeline"
+    )
+
+    if st.button(
+        "🚀 Full Refresh"
+    ):
+
+        progress_bar = st.progress(0)
+
+        status = st.empty()
+
+        try:
+
+            steps = [
+
+                (
+                    "Refreshing Odds",
+                    "collectors/odds_collector.py"
+                ),
+
+                (
+                    "Updating Team Stats",
+                    "training/update_turnaround_stats.py"
+                ),
+
+                (
+                    "Building Training Data",
+                    "training/build_training_data.py"
+                ),
+
+                (
+                    "Retraining Model",
+                    "training/retrain_model.py"
+                )
+            ]
+
+            total_steps = len(
+                steps
+            )
+
+            for index, (
+                step_name,
+                script
+            ) in enumerate(
+                steps
+            ):
+
+                status.info(
+                    f"Running: {step_name}"
+                )
+
+                subprocess.run(
+                    [
+                        sys.executable,
+                        script
+                    ],
+                    check=True
+                )
+
+                progress_bar.progress(
+                    int(
+                        (
+                            index + 1
+                        )
+                        /
+                        total_steps
+                        * 100
+                    )
+                )
+
+            status.success(
+                "✅ Full refresh completed successfully."
+            )
+
+        except Exception as exc:
+
+            status.error(
+                f"❌ Failed: {exc}"
+            )
