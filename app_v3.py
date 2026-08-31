@@ -1,5 +1,5 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
 from calculations import (
     calculate_lay_stake,
@@ -13,8 +13,14 @@ from calculations import (
 )
 
 from database import (
+    get_latest_odds,
     get_tracked_bets,
     get_performance_stats
+)
+
+from opportunities_engine import (
+    build_opportunity,
+    rebuild_opportunity
 )
 
 # ==================================
@@ -31,7 +37,9 @@ st.set_page_config(
 # HEADER
 # ==================================
 
-st.title("⚽ 2UP Master V3")
+st.title(
+    "⚽ 2UP Master V3"
+)
 
 st.caption(
     "Machine Learning Powered 2UP Opportunity Discovery & Tracking Platform"
@@ -60,135 +68,185 @@ with tab_opps:
         "⚡ Opportunities"
     )
 
-    st.info(
-        "Live Odds API integration will populate opportunities automatically."
-    )
+    rows = get_latest_odds()
 
-    st.markdown("---")
+    if not rows:
 
-    st.subheader(
-        "Opportunity Preview"
-    )
-
-    back_odds = st.number_input(
-        "Back Odds",
-        min_value=1.01,
-        value=4.80,
-        key="opp_back"
-    )
-
-    estimated_lay = round(
-        back_odds * 1.05,
-        2
-    )
-
-    lay_odds = st.number_input(
-        "Lay Odds",
-        min_value=1.01,
-        value=float(estimated_lay),
-        key="opp_lay"
-    )
-
-    commission = st.number_input(
-        "Lay Commission %",
-        min_value=0.0,
-        max_value=10.0,
-        value=2.0,
-        step=0.5,
-        key="opp_commission"
-    )
-
-    fta_pct = st.number_input(
-        "FTA %",
-        min_value=0.0,
-        value=2.5,
-        key="opp_fta"
-    )
-
-    stake = st.number_input(
-        "Stake (£)",
-        min_value=1.0,
-        value=40.0,
-        key="opp_stake"
-    )
-
-    lay_stake = calculate_lay_stake(
-        back_odds,
-        lay_odds,
-        stake,
-        commission
-    )
-
-    liability = calculate_liability(
-        lay_odds,
-        lay_stake
-    )
-
-    qualifying_loss = (
-        calculate_qualifying_loss(
-            back_odds,
-            lay_odds,
-            stake,
-            lay_stake,
-            commission
+        st.warning(
+            "No odds available. Run odds_collector.py first."
         )
-    )
 
-    fta_profit = (
-        calculate_fta_profit(
-            stake,
-            back_odds,
-            lay_stake,
-            commission
+    else:
+
+        fixtures = []
+
+        for row in rows:
+
+            fixture = {
+
+                "match":
+                    f"{row[3]} v {row[4]}",
+
+                "team":
+                    row[5],
+
+                "league":
+                    row[2],
+
+                "bookmaker":
+                    row[6],
+
+                "back_odds":
+                    float(
+                        row[7]
+                    ),
+
+                "is_home":
+                    (
+                        row[5]
+                        ==
+                        row[3]
+                    )
+            }
+
+            fixtures.append(
+                fixture
+            )
+
+        opportunities = []
+
+        for fixture in fixtures:
+
+            opportunity = (
+                build_opportunity(
+                    fixture
+                )
+            )
+
+            if opportunity:
+                opportunities.append(
+                    opportunity
+                )
+
+        opportunities.sort(
+            key=lambda x:
+            x["ranking_score"],
+            reverse=True
         )
-    )
 
-    expected_profit = (
-        calculate_expected_profit(
-            fta_profit,
-            qualifying_loss,
-            fta_pct
+        st.success(
+            f"{len(opportunities)} opportunities found"
         )
-    )
 
-    ev_percent = (
-        calculate_ev_percent(
-            expected_profit,
-            qualifying_loss
-        )
-    )
+        for i, opp in enumerate(
+            opportunities[:50]
+        ):
 
-    c1, c2, c3 = st.columns(3)
+            title = (
+                f"{opp['match']} | "
+                f"{opp['bookmaker']} | "
+                f"EV {opp['ev_percent']}%"
+            )
 
-    c1.metric(
-        "Lay Stake",
-        f"£{lay_stake:.2f}"
-    )
+            with st.expander(
+                title
+            ):
 
-    c2.metric(
-        "Liability",
-        f"£{liability:.2f}"
-    )
+                st.write(
+                    f"**Team:** {opp['team']}"
+                )
 
-    c3.metric(
-        "Qualifying Loss",
-        f"£{qualifying_loss:.2f}"
-    )
+                st.write(
+                    f"**League:** {opp['league']}"
+                )
 
-    c1.metric(
-        "FTA Profit",
-        f"£{fta_profit:.2f}"
-    )
+                st.write(
+                    f"**Bookmaker:** {opp['bookmaker']}"
+                )
 
-    c2.metric(
-        "Expected Profit",
-        f"£{expected_profit:.2f}"
-    )
+                st.write(
+                    f"**Back Odds:** {opp['back_odds']}"
+                )
 
-    c3.metric(
-        "EV %",
-        f"{ev_percent:.2f}%"
-    )
+                if opp[
+                    "estimated_lay"
+                ]:
+
+                    st.warning(
+                        "Estimated Lay Odds"
+                    )
+
+                else:
+
+                    st.success(
+                        "Confirmed Lay Odds"
+                    )
+
+                lay_odds = st.number_input(
+                    "Lay Odds",
+                    min_value=1.01,
+                    value=float(
+                        opp[
+                            "lay_odds"
+                        ]
+                    ),
+                    key=f"lay_{i}"
+                )
+
+                commission = st.number_input(
+                    "Commission %",
+                    min_value=0.0,
+                    max_value=10.0,
+                    value=float(
+                        opp[
+                            "commission"
+                        ]
+                    ),
+                    step=0.5,
+                    key=f"comm_{i}"
+                )
+
+                updated = (
+                    rebuild_opportunity(
+                        opp,
+                        lay_odds,
+                        commission
+                    )
+                )
+
+                c1, c2, c3 = st.columns(3)
+
+                c1.metric(
+                    "FTA %",
+                    updated[
+                        "fta_pct"
+                    ]
+                )
+
+                c2.metric(
+                    "Expected Profit",
+                    f"£{updated['expected_profit']}"
+                )
+
+                c3.metric(
+                    "EV %",
+                    f"{updated['ev_percent']}%"
+                )
+
+                c1.metric(
+                    "Lay Stake",
+                    f"£{updated['lay_stake']}"
+                )
+
+                c2.metric(
+                    "Liability",
+                    f"£{updated['liability']}"
+                )
+
+                c3.metric(
+                    "Qualifying Loss",
+                    f"£{updated['qualifying_loss']}"
+                )
 
 # ==================================
 # TRACKING
@@ -207,13 +265,18 @@ with tab_tracking:
         columns = [
 
             "id",
+
             "match_name",
             "team",
             "league",
             "kickoff",
 
+            "bookmaker",
+
             "back_odds",
             "lay_odds",
+
+            "estimated_lay",
 
             "stake",
             "commission",
@@ -270,33 +333,33 @@ with tab_calc:
     with col1:
 
         back_odds = st.number_input(
-            "Back Odds ",
+            "Back Odds",
             min_value=1.01,
-            value=4.50
+            value=4.60
         )
 
         lay_odds = st.number_input(
-            "Lay Odds ",
+            "Lay Odds",
             min_value=1.01,
-            value=4.75
+            value=5.00
         )
 
         stake = st.number_input(
-            "Stake ",
+            "Stake (£)",
             min_value=1.0,
             value=40.0
         )
 
         commission = st.number_input(
-            "Commission ",
+            "Commission",
             min_value=0.0,
             value=2.0
         )
 
         fta_pct = st.number_input(
-            "FTA Probability %",
+            "FTA %",
             min_value=0.0,
-            value=2.5
+            value=2.53
         )
 
     lay_stake = calculate_lay_stake(
@@ -402,9 +465,8 @@ with tab_perf:
 
     for row in tracked_bets:
 
-        stake = row[7]
-
-        profit = row[16]
+        stake = row[9]
+        profit = row[18]
 
         if profit is not None:
 
