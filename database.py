@@ -15,7 +15,7 @@ def create_tables():
     conn = get_db()
 
     conn.execute("""
-    INSERT OR REPLACE INTO tracked_bets
+    CREATE TABLE IF NOT EXISTS tracked_bets (
     (
         id,
 
