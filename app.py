@@ -117,9 +117,8 @@ tabs = st.tabs(
 # OPPORTUNITIES
 # ===================================
 
-with tabs st.header(
-        "⚡ Opportunities"
-    )
+with tabs[0]:
+    st.header("⚡ Opportunities")
 
 
     st.info(
@@ -146,11 +145,10 @@ with tabs st.header(
 # BEST BETS
 # ===================================
 
-with tabs st.header(
-        "⭐ Best Bets"
-    )
+with tabs[1]:
+    st.header("⭐ Best Bets")
 
-
+    
     st.info(
         "Best EV opportunities will appear here."
     )
@@ -159,9 +157,8 @@ with tabs st.header(
 # TRACKED BETS
 # ===================================
 
-with tabs st.header(
-        "📌 Tracked Bets"
-    )
+with tabs[2]:
+    st.header("📌 Tracked Bets")
 
 
     bets = get_tracked_bets()
@@ -182,9 +179,9 @@ with tabs st.header(
 # PERFORMANCE
 # ===================================
 
-with tabs st.header(
-        "📈 Performance Dashboard"
-    )
+with tabs[3]:
+
+    st.header("📈 Performance")
 
 
     stats = get_performance_stats()
@@ -237,9 +234,11 @@ with tabs st.header(
 # MODEL LAB
 # ===================================
 
-with tabs st.header(
-        "🧪 Model Lab"
-    )
+
+
+with tabs[4]:
+
+    st.header("🧪 Model Lab")
 
 
     model_runs = get_model_runs()
@@ -260,9 +259,9 @@ with tabs st.header(
 # MODEL CONTROLS
 # ===================================
 
-with tabs st.header(
-        "🤖 Model Controls"
-    )
+with tabs[5]:
+
+    st.header("🤖 Model Controls")
 
 
     if st.button(
