@@ -1,10 +1,35 @@
 import pandas as pd
-from datetime import datetime, timezone
+
+from datetime import (
+    datetime,
+    timezone
+)
 
 from database import get_db
 
+CSV_FILE = (
+    "2up_multi_league_dataset.csv"
+)
 
-CSV_FILE = "2up_multi_league_dataset.csv"
+
+def get_league_turnaround_rate(
+    conn,
+    league
+):
+
+    row = conn.execute(
+        """
+        SELECT turnaround_rate
+        FROM league_stats
+        WHERE league = ?
+        """,
+        (league,)
+    ).fetchone()
+
+    if row:
+        return row[0]
+
+    return None
 
 
 def import_dataset():
@@ -30,23 +55,66 @@ def import_dataset():
         if not triggered:
             continue
 
+        league = (
+            row["league"]
+            if "league" in row
+            else "Historical"
+        )
+
+        league_turnaround_rate = (
+            get_league_turnaround_rate(
+                conn,
+                league
+            )
+        )
+
+        avg_xg = None
+        avg_xga = None
+
+        xg_edge = None
+
+        if (
+            avg_xg is not None
+            and
+            avg_xga is not None
+        ):
+            xg_edge = (
+                avg_xg -
+                avg_xga
+            )
+
         conn.execute(
             """
             INSERT INTO training_data
             (
+
                 match_id,
+
                 league,
                 team,
 
                 is_home,
 
+                back_odds,
+                lay_odds,
+
                 avg_xg,
                 avg_xga,
+
+                xg_edge,
 
                 goals_last5,
                 conceded_last5,
 
                 turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate,
+
+                league_turnaround_rate,
+
+                opponent_turnaround_rate,
 
                 lead_minute,
                 max_lead,
@@ -65,42 +133,93 @@ def import_dataset():
                 full_turnaround,
 
                 created_at
+
             )
 
             VALUES
             (
-                ?,?,?,?,?,?,?,?,?,?,
-                ?,?,?,?,?,?,?,?,?,?
+
+                ?, ?, ?,
+
+                ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?,
+
+                ?, ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?,
+
+                ?,
+
+                ?
+
             )
             """,
             (
+
                 f"csv_{inserted}",
 
-                "Historical",
+                league,
 
                 row["trigger_team"],
 
-                0,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                avg_xg,
+                avg_xga,
 
-                0,
+                xg_edge,
 
-                0,
+                None,
+                None,
+
+                None,
+
+                None,
+
+                None,
+
+                league_turnaround_rate,
+
+                None,
+
+                None,
+
                 2,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
                 0.50,
 
@@ -109,12 +228,14 @@ def import_dataset():
                 datetime.now(
                     timezone.utc
                 ).isoformat()
+
             )
         )
 
         inserted += 1
 
     conn.commit()
+
     conn.close()
 
     print(
@@ -123,4 +244,5 @@ def import_dataset():
 
 
 if __name__ == "__main__":
+
     import_dataset()
