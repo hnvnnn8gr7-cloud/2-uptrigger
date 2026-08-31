@@ -10,7 +10,7 @@ from calculations import (
     calculate_ranking_score
 )
 
-from model import (
+from models.model import (
     predict_with_confidence,
     build_feature_vector
 )
