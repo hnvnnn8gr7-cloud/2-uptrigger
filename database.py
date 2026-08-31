@@ -16,73 +16,70 @@ def create_tables():
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS tracked_bets (
-    id TEXT PRIMARY KEY,
 
-    match_name TEXT,
-    team TEXT,
-    league TEXT,
-    kickoff TEXT,
+        id TEXT PRIMARY KEY,
 
-    back_odds REAL,
-    lay_odds REAL,
+        match_name TEXT,
+        team TEXT,
+        league TEXT,
+        kickoff TEXT,
 
-    stake REAL,
+        back_odds REAL,
+        lay_odds REAL,
 
-    commission REAL,
+        stake REAL,
+        commission REAL,
 
-    lay_stake REAL,
+        lay_stake REAL,
+        liability REAL,
 
-    liability REAL,
+        qualifying_loss REAL,
+        outcome_fta REAL,
 
-    qualifying_loss REAL,
+        fta_pct REAL,
+        ev_pct REAL,
 
-    fta_pct REAL,
+        expected_profit REAL,
+        actual_profit REAL,
 
-    ev_pct REAL,
+        status TEXT,
+        result TEXT,
 
-    expected_profit REAL,
+        model_version TEXT,
 
-    actual_profit REAL,
-
-    result TEXT,
-
-    model_version TEXT,
-
-    created_at TEXT
-
+        created_at TEXT,
+        settled_at TEXT
     )
     """)
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS odds_history (
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
         timestamp TEXT,
 
         match_id TEXT,
-
         kickoff TEXT,
-
         league TEXT,
 
         home_team TEXT,
-
         away_team TEXT,
 
         selection TEXT,
 
         bookmaker TEXT,
-
         exchange_name TEXT,
 
         back_odds REAL,
-
         lay_odds REAL
+
     )
     """)
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS match_results (
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
         match_id TEXT,
@@ -90,23 +87,18 @@ def create_tables():
         league TEXT,
 
         home_team TEXT,
-
         away_team TEXT,
 
         final_home INTEGER,
-
         final_away INTEGER,
 
         home_2up INTEGER,
-
         away_2up INTEGER,
 
         home_turnaround INTEGER,
-
         away_turnaround INTEGER,
 
         home_lead_minute INTEGER,
-
         away_lead_minute INTEGER,
 
         processed_at TEXT
@@ -115,35 +107,34 @@ def create_tables():
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS team_stats (
+
         team TEXT PRIMARY KEY,
 
         avg_xg REAL,
-
         avg_xga REAL,
 
-        goals_last5 INTEGER,
+        xg_edge REAL,
 
+        goals_last5 INTEGER,
         conceded_last5 INTEGER,
 
         turnaround_pct REAL,
 
         two_up_leads INTEGER,
-
         failed_leads INTEGER,
 
         home_turnaround_pct REAL,
-
         away_turnaround_pct REAL,
 
         historical_matches INTEGER,
-
         historical_two_up INTEGER,
-
         historical_comebacks INTEGER,
 
         two_up_trigger_rate REAL,
-
         historical_turnaround_rate REAL,
+
+        league_turnaround_rate REAL,
+        opponent_turnaround_rate REAL,
 
         matches_played INTEGER,
 
@@ -153,26 +144,25 @@ def create_tables():
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS training_data (
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
         match_id TEXT,
 
         league TEXT,
-
         team TEXT,
 
         is_home INTEGER,
 
         back_odds REAL,
-
         lay_odds REAL,
 
         avg_xg REAL,
-
         avg_xga REAL,
 
-        goals_last5 INTEGER,
+        xg_edge REAL,
 
+        goals_last5 INTEGER,
         conceded_last5 INTEGER,
 
         turnaround_pct REAL,
@@ -181,20 +171,19 @@ def create_tables():
 
         historical_turnaround_rate REAL,
 
-        lead_minute INTEGER,
+        league_turnaround_rate REAL,
+        opponent_turnaround_rate REAL,
 
+        lead_minute INTEGER,
         max_lead INTEGER,
 
         opening_back_odds REAL,
-
         odds_movement REAL,
 
         red_cards_for INTEGER,
-
         red_cards_against INTEGER,
 
         shots_for INTEGER,
-
         shots_against INTEGER,
 
         sample_weight REAL,
@@ -207,35 +196,68 @@ def create_tables():
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS settings (
+
         setting_name TEXT PRIMARY KEY,
         setting_value TEXT
+
     )
     """)
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS processed_fixtures (
+
         fixture_id TEXT PRIMARY KEY,
         processed_at TEXT
+
     )
     """)
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS model_runs (
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
         model_name TEXT,
+
+        version TEXT,
 
         trained_at TEXT,
 
         training_rows INTEGER,
 
+        brier_score REAL,
+
+        log_loss REAL,
+
+        roc_auc REAL,
+
         notes TEXT
+
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS league_stats (
+
+        league TEXT PRIMARY KEY,
+
+        matches INTEGER,
+
+        two_up_count INTEGER,
+
+        comeback_count INTEGER,
+
+        trigger_rate REAL,
+
+        turnaround_rate REAL,
+
+        updated_at TEXT
+
     )
     """)
 
     conn.commit()
     conn.close()
-
 
 
 def save_setting(
@@ -298,53 +320,16 @@ def save_tracked_bet(
     conn.execute(
         """
         INSERT OR REPLACE INTO tracked_bets
-        (
-            id,
-
-            match_name,
-            team,
-            league,
-            kickoff,
-
-            back_odds,
-            lay_odds,
-
-            stake,
-
-            commission,
-
-            lay_stake,
-
-            liability,
-
-            qualifying_loss,
-
-            fta_pct,
-
-            ev_pct,
-
-            expected_profit,
-
-            actual_profit,
-
-            result,
-
-            model_version,
-
-            created_at
-        )
-
         VALUES
         (
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?
+            ?,?,?,?,?,?,
+            ?,?,?,?,?,?,
+            ?,?,?,?,?,?,
+            ?,?,?,?,?,?
         )
         """,
         (
             data["id"],
-
             data["match_name"],
             data["team"],
             data["league"],
@@ -354,28 +339,27 @@ def save_tracked_bet(
             data["lay_odds"],
 
             data["stake"],
-
             data["commission"],
 
             data["lay_stake"],
-
             data["liability"],
 
             data["qualifying_loss"],
+            data["outcome_fta"],
 
             data["fta_pct"],
-
             data["ev_pct"],
 
             data["expected_profit"],
-
             data["actual_profit"],
 
+            data["status"],
             data["result"],
 
             data["model_version"],
 
-            data["created_at"]
+            data["created_at"],
+            data["settled_at"]
         )
     )
 
@@ -421,7 +405,8 @@ def delete_tracked_bet(
 def update_bet_result(
     bet_id,
     result,
-    actual_profit
+    actual_profit,
+    status="Settled"
 ):
 
     conn = get_db()
@@ -430,54 +415,16 @@ def update_bet_result(
         """
         UPDATE tracked_bets
         SET
-
             result = ?,
-
-            actual_profit = ?
-
+            actual_profit = ?,
+            status = ?,
+            settled_at = datetime('now')
         WHERE id = ?
         """,
         (
             result,
             actual_profit,
-            bet_id
-        )
-    )
-
-    conn.commit()
-    conn.close()
-
-
-def update_tracked_bet(
-    bet_id,
-    stake,
-    commission,
-    lay_stake,
-    liability
-):
-
-    conn = get_db()
-
-    conn.execute(
-        """
-        UPDATE tracked_bets
-        SET
-
-            stake = ?,
-
-            commission = ?,
-
-            lay_stake = ?,
-
-            liability = ?
-
-        WHERE id = ?
-        """,
-        (
-            stake,
-            commission,
-            lay_stake,
-            liability,
+            status,
             bet_id
         )
     )
@@ -517,7 +464,11 @@ def get_performance_stats():
 
 def save_model_run(
     model_name,
+    version,
     training_rows,
+    brier_score,
+    log_loss,
+    roc_auc,
     notes=""
 ):
 
@@ -528,18 +479,34 @@ def save_model_run(
         INSERT INTO model_runs
         (
             model_name,
+            version,
             trained_at,
             training_rows,
+            brier_score,
+            log_loss,
+            roc_auc,
             notes
         )
+
         VALUES
         (
-            ?, datetime('now'), ?, ?
+            ?,
+            ?,
+            datetime('now'),
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
         )
         """,
         (
             model_name,
+            version,
             training_rows,
+            brier_score,
+            log_loss,
+            roc_auc,
             notes
         )
     )
@@ -557,6 +524,65 @@ def get_model_runs():
         SELECT *
         FROM model_runs
         ORDER BY trained_at DESC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def save_league_stats(
+    league,
+    matches,
+    two_up_count,
+    comeback_count,
+    trigger_rate,
+    turnaround_rate
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO league_stats
+        (
+            league,
+            matches,
+            two_up_count,
+            comeback_count,
+            trigger_rate,
+            turnaround_rate,
+            updated_at
+        )
+        VALUES
+        (
+            ?, ?, ?, ?, ?, ?,
+            datetime('now')
+        )
+        """,
+        (
+            league,
+            matches,
+            two_up_count,
+            comeback_count,
+            trigger_rate,
+            turnaround_rate
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def get_league_stats():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM league_stats
         """
     ).fetchall()
 
