@@ -668,7 +668,7 @@ with tab_perf:
         f"{won_bets}/{lost_bets}"
     )
 
-st.markdown("---")
+    st.markdown("---")
 
     st.subheader(
         "📈 Expected Profit vs Actual Profit"
