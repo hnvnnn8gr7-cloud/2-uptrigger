@@ -41,14 +41,17 @@ def create_tables():
         qualifying_loss,
         outcome_fta,
 
-        fta_pct,
-        ev_pct,
+        fta_pct REAL,
+        ev_pct REAL,
 
-        expected_profit,
-        actual_profit,
+        expected_profit REAL,
+        actual_profit REAL,
 
-        status,
-        result,
+        actual_fta INTEGER,
+
+        status TEXT,
+        result TEXT,
+
 
         model_version,
 
@@ -410,8 +413,11 @@ def save_tracked_bet(
             data["expected_profit"],
             data["actual_profit"],
 
+            data["actual_fta"],
+
             data["status"],
             data["result"],
+
 
             data["model_version"],
 
