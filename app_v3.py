@@ -270,43 +270,46 @@ with tab_tracking:
 
         columns = [
 
-            "id",
+    "id",
 
-            "match_name",
-            "team",
-            "league",
-            "kickoff",
+    "match_name",
+    "team",
+    "league",
+    "kickoff",
 
-            "bookmaker",
+    "bookmaker",
 
-            "back_odds",
-            "lay_odds",
+    "back_odds",
+    "lay_odds",
 
-            "estimated_lay",
+    "estimated_lay",
 
-            "stake",
-            "commission",
+    "stake",
+    "commission",
 
-            "lay_stake",
-            "liability",
+    "lay_stake",
+    "liability",
 
-            "qualifying_loss",
-            "outcome_fta",
+    "qualifying_loss",
+    "outcome_fta",
 
-            "fta_pct",
-            "ev_pct",
+    "fta_pct",
+    "ev_pct",
 
-            "expected_profit",
-            "actual_profit",
+    "expected_profit",
+    "actual_profit",
 
-            "status",
-            "result",
+    "actual_fta",
 
-            "model_version",
+    "status",
+    "result",
 
-            "created_at",
-            "settled_at"
-        ]
+    "model_version",
+
+    "created_at",
+    "settled_at"
+]
+        
 
         df = pd.DataFrame(
             bets,
