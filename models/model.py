@@ -1,246 +1,242 @@
-import math
+import joblib
+import pandas as pd
+
+MODEL_FILE = "fta_model.pkl"
 
 
-def calculate_hybrid_fta(
-    back_odds,
-    is_home=True
+def load_model():
+    """
+    Load trained FTA model.
+    """
+
+    return joblib.load(
+        MODEL_FILE
+    )
+
+
+def predict_fta(
+    feature_data
 ):
+    """
+    Return FTA probability as %
+    """
 
-    implied_win_prob = 1 / back_odds
+    model = load_model()
 
-    home_bias = 1.10 if is_home else 0.90
-
-    exp_goals = (
-        implied_win_prob
-        * 2.65
-        * home_bias
+    df = pd.DataFrame(
+        [feature_data]
     )
 
-    p0 = math.exp(-exp_goals)
-
-    p1 = (
-        exp_goals *
-        math.exp(-exp_goals)
+    probability = (
+        model
+        .predict_proba(df)[0][1]
     )
-
-    p2plus = 1 - (p0 + p1)
 
     return round(
-        max(
-            0.80,
-            min(
-                p2plus *
-                implied_win_prob *
-                10,
-                3.50
-            )
+        probability * 100,
+        2
+    )
+
+
+def predict_with_confidence(
+    feature_data
+):
+    """
+    Return FTA percentage
+    and confidence score.
+    """
+
+    model = load_model()
+
+    df = pd.DataFrame(
+        [feature_data]
+    )
+
+    probabilities = (
+        model
+        .predict_proba(df)[0]
+    )
+
+    fta_probability = (
+        probabilities[1]
+    )
+
+    confidence = (
+        max(probabilities)
+        * 100
+    )
+
+    return {
+        "fta_pct": round(
+            fta_probability * 100,
+            2
         ),
-        2
-    )
-
-
-def calculate_lay_stake(
-    stake,
-    back_odds,
-    lay_odds,
-    commission
-):
-
-    commission = commission / 100
-
-    lay_stake = (
-        back_odds *
-        stake
-    ) / (
-        lay_odds -
-        commission
-    )
-
-    return round(
-        lay_stake,
-        2
-    )
-
-
-def calculate_qualifying_loss(
-    stake,
-    back_odds,
-    lay_odds,
-    commission
-):
-
-    lay_stake = calculate_lay_stake(
-        stake,
-        back_odds,
-        lay_odds,
-        commission
-    )
-
-    back_win_profit = (
-        stake *
-        (
-            back_odds - 1
+        "confidence": round(
+            confidence,
+            2
         )
-    )
-
-    lay_liability = (
-        lay_stake *
-        (
-            lay_odds - 1
-        )
-    )
-
-    profit_if_back_wins = (
-        back_win_profit -
-        lay_liability
-    )
-
-    profit_if_lay_wins = (
-        lay_stake *
-        (
-            1 -
-            (
-                commission / 100
-            )
-        )
-    ) - stake
-
-    ql = min(
-        profit_if_back_wins,
-        profit_if_lay_wins
-    )
-
-    return round(
-        abs(ql),
-        2
-    )
+    }
 
 
-def calculate_turnaround_profit(
-    stake,
-    back_odds
-):
-
-    return round(
-        stake *
-        (
-            back_odds - 1
-        ),
-        2
-    )
-
-
-def calculate_expected_profit(
-    back_odds,
-    lay_odds,
+def calculate_ranking_score(
+    expected_profit,
     fta_pct,
-    stake,
-    commission
+    xg_edge=0
 ):
+    """
+    Opportunity ranking score.
 
-    qualifying_loss = (
-        calculate_qualifying_loss(
-            stake,
-            back_odds,
-            lay_odds,
-            commission
-        )
-    )
+    Higher is better.
+    """
 
-    turnaround_profit = (
-        calculate_turnaround_profit(
-            stake,
-            back_odds
-        )
-    )
-
-    expected_profit = (
+    return round(
         (
-            turnaround_profit *
+            expected_profit
+            *
             (
                 fta_pct / 100
             )
         )
-        -
-        qualifying_loss
-    )
-
-    return round(
-        expected_profit,
-        2
-    )
-
-
-def calculate_ev(
-    back_odds,
-    lay_odds,
-    fta_pct,
-    commission=2.0,
-    stake=100
-):
-
-    expected_profit = (
-        calculate_expected_profit(
-            back_odds,
-            lay_odds,
-            fta_pct,
-            stake,
-            commission
-        )
-    )
-
-    ev = (
-        100
         +
         (
-            expected_profit
-            /
-            stake
-        ) * 100
-    )
-
-    return round(
-        ev,
-        2
-    )
-
-
-def calculate_ranking_score(
-    ev_pct,
-    fta_pct,
-    xg_edge=0
-):
-
-    return round(
-        (
-            ev_pct * 0.5
-        )
-        +
-        (
-            fta_pct * 10 * 0.3
-        )
-        +
-        (
-            xg_edge * 10 * 0.2
+            xg_edge * 0.1
         ),
-        2
+        4
     )
 
 
 def get_ev_color(
-    ev
+    ev_percent
 ):
+    """
+    UI colour helper.
+    """
 
-    if ev >= 115:
-        return "#00c853"
+    if ev_percent >= 100:
+        return "green"
 
-    if ev >= 110:
-        return "#00bfa5"
+    if ev_percent >= 50:
+        return "lightgreen"
 
-    if ev >= 105:
-        return "#2962ff"
+    if ev_percent >= 0:
+        return "orange"
 
-    if ev >= 100:
-        return "#fdd835"
+    return "red"
 
-    return "#ef5350"
+
+def build_feature_vector(
+    team_stats,
+    is_home,
+    opening_back_odds,
+    lead_minute=0,
+    shots_for=0,
+    shots_against=0,
+    red_cards_for=0,
+    red_cards_against=0
+):
+    """
+    Converts team statistics
+    into model input.
+    """
+
+    avg_xg = (
+        team_stats.get(
+            "avg_xg",
+            0
+        )
+    )
+
+    avg_xga = (
+        team_stats.get(
+            "avg_xga",
+            0
+        )
+    )
+
+    xg_edge = (
+        avg_xg -
+        avg_xga
+    )
+
+    return {
+
+        "avg_xg":
+            avg_xg,
+
+        "avg_xga":
+            avg_xga,
+
+        "xg_edge":
+            xg_edge,
+
+        "goals_last5":
+            team_stats.get(
+                "goals_last5",
+                0
+            ),
+
+        "conceded_last5":
+            team_stats.get(
+                "conceded_last5",
+                0
+            ),
+
+        "turnaround_pct":
+            team_stats.get(
+                "turnaround_pct",
+                0
+            ),
+
+        "historical_turnaround_rate":
+            team_stats.get(
+                "historical_turnaround_rate",
+                0
+            ),
+
+        "two_up_trigger_rate":
+            team_stats.get(
+                "two_up_trigger_rate",
+                0
+            ),
+
+        "league_turnaround_rate":
+            team_stats.get(
+                "league_turnaround_rate",
+                0
+            ),
+
+        "opponent_turnaround_rate":
+            team_stats.get(
+                "opponent_turnaround_rate",
+                0
+            ),
+
+        "is_home":
+            int(is_home),
+
+        "opening_back_odds":
+            opening_back_odds,
+
+        "lead_minute":
+            lead_minute,
+
+        "shots_for":
+            shots_for,
+
+        "shots_against":
+            shots_against,
+
+        "red_cards_for":
+            red_cards_for,
+
+        "red_cards_against":
+            red_cards_against
+    }
+
+
+def model_version():
+    """
+    Current deployed model version.
+    """
+
+    return "V3.0"
