@@ -1,17 +1,27 @@
-from datetime import datetime, timedelta, timezone
+from datetime import (
+    datetime,
+    timedelta,
+    timezone
+)
+
 import sqlite3
 import requests
 
-API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
+
+API_FOOTBALL_KEY = (
+    "aa7c72b2db786ed876c98fdafd5274b4"
+)
 
 DB_NAME = "two_up.db"
 
 HEADERS = {
-    "x-apisports-key": API_FOOTBALL_KEY
+    "x-apisports-key":
+        API_FOOTBALL_KEY
 }
 
 
 def get_db():
+
     return sqlite3.connect(
         DB_NAME,
         check_same_thread=False
@@ -27,33 +37,61 @@ def save_team_stats(
     matches_played
 ):
 
+    xg_edge = (
+        avg_xg -
+        avg_xga
+    )
+
     conn = get_db()
 
     conn.execute(
         """
-        INSERT OR REPLACE INTO team_stats
+        INSERT OR IGNORE INTO
+        team_stats
         (
-            team,
-            avg_xg,
-            avg_xga,
-            goals_last5,
-            conceded_last5,
-            matches_played,
-            updated_at
+            team
         )
         VALUES
-        (?, ?, ?, ?, ?, ?, ?)
+        (?)
+        """,
+        (team,)
+    )
+
+    conn.execute(
+        """
+        UPDATE team_stats
+        SET
+
+            avg_xg = ?,
+            avg_xga = ?,
+
+            xg_edge = ?,
+
+            goals_last5 = ?,
+            conceded_last5 = ?,
+
+            matches_played = ?,
+
+            updated_at = ?
+
+        WHERE team = ?
         """,
         (
-            team,
             avg_xg,
             avg_xga,
+
+            xg_edge,
+
             goals_last5,
             conceded_last5,
+
             matches_played,
+
             datetime.now(
                 timezone.utc
-            ).isoformat()
+            ).isoformat(),
+
+            team
         )
     )
 
@@ -63,22 +101,22 @@ def save_team_stats(
 
 def get_recent_fixtures():
 
-    yesterday = (
-        datetime.now(
-            timezone.utc
-        )
-        - timedelta(days=1)
-    ).strftime("%Y-%m-%d")
+    date_from = (
+        datetime.utcnow()
+        - timedelta(days=60)
+    ).strftime(
+        "%Y-%m-%d"
+    )
 
     url = (
         "https://v3.football.api-sports.io/"
-        f"fixtures?date={yesterday}&status=FT"
+        f"fixtures?from={date_from}"
     )
 
     response = requests.get(
         url,
         headers=HEADERS,
-        timeout=20
+        timeout=30
     )
 
     data = response.json()
@@ -101,7 +139,7 @@ def get_fixture_statistics(
     response = requests.get(
         url,
         headers=HEADERS,
-        timeout=20
+        timeout=30
     )
 
     data = response.json()
@@ -112,9 +150,27 @@ def get_fixture_statistics(
     )
 
 
+def extract_stat(
+    stats,
+    stat_name
+):
+
+    for item in stats:
+
+        if (
+            item["type"]
+            == stat_name
+        ):
+            return item["value"]
+
+    return 0
+
+
 def process_xg():
 
-    fixtures = get_recent_fixtures()
+    fixtures = (
+        get_recent_fixtures()
+    )
 
     team_data = {}
 
@@ -124,149 +180,182 @@ def process_xg():
             fixture["fixture"]["id"]
         )
 
+        stats = (
+            get_fixture_statistics(
+                fixture_id
+            )
+        )
+
+        if len(stats) < 2:
+            continue
+
         home_team = (
-            fixture["teams"]["home"]["name"]
+            stats[0]["team"]["name"]
         )
 
         away_team = (
-            fixture["teams"]["away"]["name"]
+            stats[1]["team"]["name"]
+        )
+
+        home_stats = (
+            stats[0]["statistics"]
+        )
+
+        away_stats = (
+            stats[1]["statistics"]
         )
 
         home_goals = (
-            fixture["goals"]["home"] or 0
+            fixture["goals"]["home"]
+            or 0
         )
 
         away_goals = (
-            fixture["goals"]["away"] or 0
+            fixture["goals"]["away"]
+            or 0
         )
 
-        stats = get_fixture_statistics(
-            fixture_id
+        home_xg = extract_stat(
+            home_stats,
+            "Expected Goals"
         )
 
-        home_xg = 0
-        away_xg = 0
+        away_xg = extract_stat(
+            away_stats,
+            "Expected Goals"
+        )
 
-        for team_stats in stats:
-
-            team_name = (
-                team_stats["team"]["name"]
+        try:
+            home_xg = float(
+                home_xg
+            )
+        except:
+            home_xg = (
+                home_goals
             )
 
-            for stat in team_stats["statistics"]:
+        try:
+            away_xg = float(
+                away_xg
+            )
+        except:
+            away_xg = (
+                away_goals
+            )
 
-                if (
-                    stat["type"]
-                    == "Expected Goals"
-                ):
+        for team in [
+            home_team,
+            away_team
+        ]:
 
-                    try:
+            if team not in team_data:
 
-                        value = float(
-                            stat["value"]
-                        )
+                team_data[
+                    team
+                ] = {
+                    "xg": [],
+                    "xga": [],
+                    "goals": [],
+                    "conceded": []
+                }
 
-                    except:
-
-                        value = 0
-
-                    if team_name == home_team:
-                        home_xg = value
-
-                    if team_name == away_team:
-                        away_xg = value
-
-        if home_team not in team_data:
-
-            team_data[home_team] = {
-                "xg": [],
-                "xga": [],
-                "gf": [],
-                "ga": []
-            }
-
-        if away_team not in team_data:
-
-            team_data[away_team] = {
-                "xg": [],
-                "xga": [],
-                "gf": [],
-                "ga": []
-            }
-
-        team_data[home_team]["xg"].append(
+        team_data[
+            home_team
+        ]["xg"].append(
             home_xg
         )
 
-        team_data[home_team]["xga"].append(
+        team_data[
+            home_team
+        ]["xga"].append(
             away_xg
         )
 
-        team_data[home_team]["gf"].append(
+        team_data[
+            home_team
+        ]["goals"].append(
             home_goals
         )
 
-        team_data[home_team]["ga"].append(
+        team_data[
+            home_team
+        ]["conceded"].append(
             away_goals
         )
 
-        team_data[away_team]["xg"].append(
+        team_data[
+            away_team
+        ]["xg"].append(
             away_xg
         )
 
-        team_data[away_team]["xga"].append(
+        team_data[
+            away_team
+        ]["xga"].append(
             home_xg
         )
 
-        team_data[away_team]["gf"].append(
+        team_data[
+            away_team
+        ]["goals"].append(
             away_goals
         )
 
-        team_data[away_team]["ga"].append(
+        team_data[
+            away_team
+        ]["conceded"].append(
             home_goals
         )
 
-    for team, stats in team_data.items():
+    for team, values in team_data.items():
 
-        matches = len(
-            stats["xg"]
+        matches_played = len(
+            values["xg"]
         )
 
-        if matches == 0:
+        if matches_played == 0:
             continue
 
-        avg_xg = (
-            sum(stats["xg"])
-            / matches
+        avg_xg = round(
+            sum(values["xg"])
+            /
+            matches_played,
+            2
         )
 
-        avg_xga = (
-            sum(stats["xga"])
-            / matches
+        avg_xga = round(
+            sum(values["xga"])
+            /
+            matches_played,
+            2
         )
 
-        goals_last5 = sum(
-            stats["gf"][-5:]
+        goals_last5 = round(
+            sum(
+                values["goals"][-5:]
+            ),
+            2
         )
 
-        conceded_last5 = sum(
-            stats["ga"][-5:]
+        conceded_last5 = round(
+            sum(
+                values["conceded"][-5:]
+            ),
+            2
         )
 
         save_team_stats(
             team,
-            round(avg_xg, 2),
-            round(avg_xga, 2),
+            avg_xg,
+            avg_xga,
             goals_last5,
             conceded_last5,
-            matches
+            matches_played
         )
 
-        print(
-            f"{team} "
-            f"xG={avg_xg:.2f} "
-            f"xGA={avg_xga:.2f}"
-        )
+    print(
+        f"Updated {len(team_data)} teams"
+    )
 
 
 if __name__ == "__main__":
