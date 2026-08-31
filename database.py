@@ -640,6 +640,65 @@ def save_team_alias(
     conn.commit()
     conn.close()
 
+def get_team_alias(
+    alias
+):
+    conn = get_db()
+
+    row = conn.execute(
+        """
+        SELECT canonical_name
+        FROM team_aliases
+        WHERE LOWER(alias) = ?
+        """,
+        (
+            alias.lower(),
+        )
+    ).fetchone()
+
+    conn.close()
+
+    if row:
+        return row[0]
+
+    return None
+
+def get_all_team_aliases():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT
+            alias,
+            canonical_name,
+            source
+        FROM team_aliases
+        ORDER BY canonical_name
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+def delete_team_alias(
+    alias
+):
+    conn = get_db()
+
+    conn.execute(
+        """
+        DELETE FROM team_aliases
+        WHERE alias = ?
+        """,
+        (alias,)
+    )
+
+    conn.commit()
+    conn.close()
+
+
 
 
 if __name__ == "__main__":
