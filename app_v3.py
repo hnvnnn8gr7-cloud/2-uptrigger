@@ -262,7 +262,7 @@ with tab_opps:
                     "Qualifying Loss",
                     f"£{updated['qualifying_loss']}"
                 )
-if st.button(
+                if st.button(
                     "📌 Track Bet",
                     key=f"track_{i}"
                 ):
