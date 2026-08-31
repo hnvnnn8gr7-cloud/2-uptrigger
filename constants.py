@@ -1,0 +1,21 @@
+BET_COLUMNS = [
+    "id",
+    "match_name",
+    "team",
+    "league",
+    "kickoff",
+    "back_odds",
+    "lay_odds",
+    "stake",
+    "lay_stake",
+    "qualifying_loss",
+    "fta_pct",
+    "ev_pct",
+    "expected_profit",
+    "actual_profit",
+    "result",
+    "created_at",
+    "commission",
+    "liability",
+    "model_version"
+]
