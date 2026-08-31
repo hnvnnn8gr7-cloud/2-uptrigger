@@ -117,9 +117,7 @@ tabs = st.tabs(
 # OPPORTUNITIES
 # ===================================
 
-with tabs:
-python
-st.header(
+with tabs st.header(
         "⚡ Opportunities"
     )
 
@@ -148,7 +146,7 @@ st.header(
 # BEST BETS
 # ===================================
 
-with tabsst.header(
+with tabs st.header(
         "⭐ Best Bets"
     )
 
@@ -161,7 +159,7 @@ with tabsst.header(
 # TRACKED BETS
 # ===================================
 
-with tabsst.header(
+with tabs st.header(
         "📌 Tracked Bets"
     )
 
@@ -184,7 +182,7 @@ with tabsst.header(
 # PERFORMANCE
 # ===================================
 
-with tabsst.header(
+with tabs st.header(
         "📈 Performance Dashboard"
     )
 
@@ -239,7 +237,7 @@ with tabsst.header(
 # MODEL LAB
 # ===================================
 
-with tabsst.header(
+with tabs st.header(
         "🧪 Model Lab"
     )
 
@@ -262,7 +260,7 @@ with tabsst.header(
 # MODEL CONTROLS
 # ===================================
 
-with tabsst.header(
+with tabs st.header(
         "🤖 Model Controls"
     )
 
