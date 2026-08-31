@@ -14,8 +14,7 @@ def create_tables():
 
     conn = get_db()
 
-    conn.execute(
-    """
+    conn.execute("""
     INSERT OR REPLACE INTO tracked_bets
     (
         id,
