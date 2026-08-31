@@ -63,3 +63,32 @@ def calculate_qualifying_loss(
         ),
         2
     )
+
+def calculate_fta_profit(
+    stake,
+    back_odds,
+    lay_stake,
+    commission
+):
+
+    bookmaker_return = (
+        stake *
+        back_odds
+    )
+
+    lay_win = (
+        lay_stake *
+        (
+            1 -
+            (
+                commission / 100
+            )
+        )
+    )
+
+    return round(
+        bookmaker_return +
+        lay_win -
+        stake,
+        2
+    )
