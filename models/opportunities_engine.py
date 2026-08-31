@@ -16,10 +16,32 @@ from model import (
 )
 
 
+def estimate_lay_odds(
+    back_odds
+):
+    """
+    Estimate exchange lay odds when
+    exchange data is unavailable.
+    """
+
+    if back_odds < 2:
+        margin = 0.03
+
+    elif back_odds < 5:
+        margin = 0.05
+
+    else:
+        margin = 0.08
+
+    return round(
+        back_odds * (1 + margin),
+        2
+    )
+
+
 def get_team_stats(
     team
 ):
-
     conn = get_db()
 
     row = conn.execute(
@@ -28,7 +50,6 @@ def get_team_stats(
 
             avg_xg,
             avg_xga,
-
             xg_edge,
 
             goals_last5,
@@ -75,7 +96,6 @@ def build_opportunity(
     stake=40,
     commission=2
 ):
-
     team = fixture["team"]
 
     stats = get_team_stats(
@@ -85,28 +105,46 @@ def build_opportunity(
     if not stats:
         return None
 
-    feature_vector = (
-        build_feature_vector(
-            team_stats=stats,
+    back_odds = fixture[
+        "back_odds"
+    ]
 
-            is_home=fixture.get(
-                "is_home",
-                True
-            ),
+    supplied_lay_odds = fixture.get(
+        "lay_odds"
+    )
 
-            opening_back_odds=
-            fixture[
-                "back_odds"
-            ],
+    estimated_lay = False
 
-            lead_minute=0,
+    if supplied_lay_odds is None:
 
-            shots_for=0,
-            shots_against=0,
-
-            red_cards_for=0,
-            red_cards_against=0
+        lay_odds = estimate_lay_odds(
+            back_odds
         )
+
+        estimated_lay = True
+
+    else:
+
+        lay_odds = supplied_lay_odds
+
+    feature_vector = build_feature_vector(
+        team_stats=stats,
+
+        is_home=fixture.get(
+            "is_home",
+            True
+        ),
+
+        opening_back_odds=
+        back_odds,
+
+        lead_minute=0,
+
+        shots_for=0,
+        shots_against=0,
+
+        red_cards_for=0,
+        red_cards_against=0
     )
 
     prediction = (
@@ -121,14 +159,6 @@ def build_opportunity(
 
     confidence = prediction[
         "confidence"
-    ]
-
-    back_odds = fixture[
-        "back_odds"
-    ]
-
-    lay_odds = fixture[
-        "lay_odds"
     ]
 
     lay_stake = (
@@ -191,23 +221,40 @@ def build_opportunity(
     return {
 
         "match":
-            fixture[
-                "match"
-            ],
+            fixture.get(
+                "match",
+                ""
+            ),
 
         "team":
             team,
 
         "league":
-            fixture[
-                "league"
-            ],
+            fixture.get(
+                "league",
+                ""
+            ),
+
+        "bookmaker":
+            fixture.get(
+                "bookmaker",
+                ""
+            ),
 
         "back_odds":
-            back_odds,
+            round(
+                back_odds,
+                2
+            ),
 
         "lay_odds":
-            lay_odds,
+            round(
+                lay_odds,
+                2
+            ),
+
+        "estimated_lay":
+            estimated_lay,
 
         "fta_pct":
             round(
@@ -221,33 +268,190 @@ def build_opportunity(
                 2
             ),
 
+        "stake":
+            stake,
+
+        "commission":
+            commission,
+
         "lay_stake":
-            lay_stake,
+            round(
+                lay_stake,
+                2
+            ),
 
         "liability":
-            liability,
+            round(
+                liability,
+                2
+            ),
 
         "qualifying_loss":
-            qualifying_loss,
+            round(
+                qualifying_loss,
+                2
+            ),
 
         "fta_profit":
-            fta_profit,
+            round(
+                fta_profit,
+                2
+            ),
 
         "expected_profit":
-            expected_profit,
+            round(
+                expected_profit,
+                2
+            ),
 
         "ev_percent":
-            ev_percent,
+            round(
+                ev_percent,
+                2
+            ),
 
         "ranking_score":
-            ranking_score
+            round(
+                ranking_score,
+                4
+            )
     }
+
+
+def rebuild_opportunity(
+    opportunity,
+    lay_odds,
+    commission
+):
+    """
+    Recalculate metrics when user
+    changes lay odds or commission.
+    """
+
+    back_odds = opportunity[
+        "back_odds"
+    ]
+
+    stake = opportunity.get(
+        "stake",
+        40
+    )
+
+    lay_stake = (
+        calculate_lay_stake(
+            back_odds,
+            lay_odds,
+            stake,
+            commission
+        )
+    )
+
+    liability = (
+        calculate_liability(
+            lay_odds,
+            lay_stake
+        )
+    )
+
+    qualifying_loss = (
+        calculate_qualifying_loss(
+            back_odds,
+            lay_odds,
+            stake,
+            lay_stake,
+            commission
+        )
+    )
+
+    fta_profit = (
+        calculate_fta_profit(
+            stake,
+            back_odds,
+            lay_stake,
+            commission
+        )
+    )
+
+    expected_profit = (
+        calculate_expected_profit(
+            fta_profit,
+            qualifying_loss,
+            opportunity[
+                "fta_pct"
+            ]
+        )
+    )
+
+    ev_percent = (
+        calculate_ev_percent(
+            expected_profit,
+            qualifying_loss
+        )
+    )
+
+    opportunity[
+        "lay_odds"
+    ] = round(
+        lay_odds,
+        2
+    )
+
+    opportunity[
+        "commission"
+    ] = commission
+
+    opportunity[
+        "lay_stake"
+    ] = round(
+        lay_stake,
+        2
+    )
+
+    opportunity[
+        "liability"
+    ] = round(
+        liability,
+        2
+    )
+
+    opportunity[
+        "qualifying_loss"
+    ] = round(
+        qualifying_loss,
+        2
+    )
+
+    opportunity[
+        "fta_profit"
+    ] = round(
+        fta_profit,
+        2
+    )
+
+    opportunity[
+        "expected_profit"
+    ] = round(
+        expected_profit,
+        2
+    )
+
+    opportunity[
+        "ev_percent"
+    ] = round(
+        ev_percent,
+        2
+    )
+
+    opportunity[
+        "estimated_lay"
+    ] = False
+
+    return opportunity
 
 
 def rank_opportunities(
     fixtures
 ):
-
     opportunities = []
 
     for fixture in fixtures:
@@ -259,15 +463,13 @@ def rank_opportunities(
         )
 
         if opportunity:
-
             opportunities.append(
                 opportunity
             )
 
-    opportunities = sorted(
-        opportunities,
+    opportunities.sort(
         key=lambda x:
-            x["ranking_score"],
+        x["ranking_score"],
         reverse=True
     )
 
@@ -278,11 +480,6 @@ def get_top_opportunities(
     fixtures,
     limit=20
 ):
-
-    ranked = (
-        rank_opportunities(
-            fixtures
-        )
-    )
-
-    return ranked[:limit]
+    return rank_opportunities(
+        fixtures
+    )[:limit]
