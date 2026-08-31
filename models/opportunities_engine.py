@@ -21,7 +21,7 @@ def estimate_lay_odds(
 ):
     """
     Estimate exchange lay odds when
-    exchange data is unavailable.
+    no live exchange odds exist.
     """
 
     if back_odds < 2:
@@ -50,6 +50,7 @@ def get_team_stats(
 
             avg_xg,
             avg_xga,
+
             xg_edge,
 
             goals_last5,
@@ -105,17 +106,17 @@ def build_opportunity(
     if not stats:
         return None
 
-    back_odds = fixture[
-        "back_odds"
-    ]
+    back_odds = float(
+        fixture["back_odds"]
+    )
 
-    supplied_lay_odds = fixture.get(
+    supplied_lay = fixture.get(
         "lay_odds"
     )
 
     estimated_lay = False
 
-    if supplied_lay_odds is None:
+    if supplied_lay is None:
 
         lay_odds = estimate_lay_odds(
             back_odds
@@ -125,26 +126,30 @@ def build_opportunity(
 
     else:
 
-        lay_odds = supplied_lay_odds
+        lay_odds = float(
+            supplied_lay
+        )
 
-    feature_vector = build_feature_vector(
-        team_stats=stats,
+    feature_vector = (
+        build_feature_vector(
+            team_stats=stats,
 
-        is_home=fixture.get(
-            "is_home",
-            True
-        ),
+            is_home=fixture.get(
+                "is_home",
+                True
+            ),
 
-        opening_back_odds=
-        back_odds,
+            opening_back_odds=
+            back_odds,
 
-        lead_minute=0,
+            lead_minute=0,
 
-        shots_for=0,
-        shots_against=0,
+            shots_for=0,
+            shots_against=0,
 
-        red_cards_for=0,
-        red_cards_against=0
+            red_cards_for=0,
+            red_cards_against=0
+        )
     )
 
     prediction = (
@@ -256,6 +261,12 @@ def build_opportunity(
         "estimated_lay":
             estimated_lay,
 
+        "stake":
+            stake,
+
+        "commission":
+            commission,
+
         "fta_pct":
             round(
                 fta_pct,
@@ -267,12 +278,6 @@ def build_opportunity(
                 confidence,
                 2
             ),
-
-        "stake":
-            stake,
-
-        "commission":
-            commission,
 
         "lay_stake":
             round(
@@ -324,7 +329,7 @@ def rebuild_opportunity(
     commission
 ):
     """
-    Recalculate metrics when user
+    Recalculate EV when the user
     changes lay odds or commission.
     """
 
@@ -332,10 +337,9 @@ def rebuild_opportunity(
         "back_odds"
     ]
 
-    stake = opportunity.get(
-        "stake",
-        40
-    )
+    stake = opportunity[
+        "stake"
+    ]
 
     lay_stake = (
         calculate_lay_stake(
@@ -389,64 +393,68 @@ def rebuild_opportunity(
         )
     )
 
-    opportunity[
+    updated = dict(
+        opportunity
+    )
+
+    updated[
         "lay_odds"
     ] = round(
         lay_odds,
         2
     )
 
-    opportunity[
+    updated[
         "commission"
     ] = commission
 
-    opportunity[
+    updated[
+        "estimated_lay"
+    ] = False
+
+    updated[
         "lay_stake"
     ] = round(
         lay_stake,
         2
     )
 
-    opportunity[
+    updated[
         "liability"
     ] = round(
         liability,
         2
     )
 
-    opportunity[
+    updated[
         "qualifying_loss"
     ] = round(
         qualifying_loss,
         2
     )
 
-    opportunity[
+    updated[
         "fta_profit"
     ] = round(
         fta_profit,
         2
     )
 
-    opportunity[
+    updated[
         "expected_profit"
     ] = round(
         expected_profit,
         2
     )
 
-    opportunity[
+    updated[
         "ev_percent"
     ] = round(
         ev_percent,
         2
     )
 
-    opportunity[
-        "estimated_lay"
-    ] = False
-
-    return opportunity
+    return updated
 
 
 def rank_opportunities(
@@ -480,6 +488,10 @@ def get_top_opportunities(
     fixtures,
     limit=20
 ):
-    return rank_opportunities(
-        fixtures
-    )[:limit]
+    ranked = (
+        rank_opportunities(
+            fixtures
+        )
+    )
+
+    return ranked[:limit]
