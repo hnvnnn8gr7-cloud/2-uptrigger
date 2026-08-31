@@ -24,8 +24,12 @@ def create_tables():
         league TEXT,
         kickoff TEXT,
 
+        bookmaker TEXT,
+
         back_odds REAL,
         lay_odds REAL,
+
+        estimated_lay INTEGER,
 
         stake REAL,
         commission REAL,
@@ -49,8 +53,10 @@ def create_tables():
 
         created_at TEXT,
         settled_at TEXT
+
     )
     """)
+
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS team_aliases (
@@ -342,18 +348,24 @@ def save_tracked_bet(
             ?,?,?,?,?,?,
             ?,?,?,?,?,?,
             ?,?,?,?,?,?,
-            ?,?,?,?,?,?
+            ?,?,?,?,?,?,
+            ?,?
         )
         """,
         (
             data["id"],
+
             data["match_name"],
             data["team"],
             data["league"],
             data["kickoff"],
 
+            data["bookmaker"],
+
             data["back_odds"],
             data["lay_odds"],
+
+            data["estimated_lay"],
 
             data["stake"],
             data["commission"],
@@ -382,6 +394,7 @@ def save_tracked_bet(
 
     conn.commit()
     conn.close()
+
 
 
 def get_tracked_bets():
@@ -819,6 +832,22 @@ def clear_odds_history():
     conn.close()
 
 
+def get_pending_bets():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM tracked_bets
+        WHERE status = 'Pending'
+        ORDER BY kickoff ASC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return rows
 
 
 
