@@ -117,7 +117,7 @@ tabs = st.tabs(
 # OPPORTUNITIES
 # ===================================
 
-with tabs
+with tabs:
 python
 st.header(
         "⚡ Opportunities"
