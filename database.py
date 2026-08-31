@@ -884,6 +884,62 @@ def get_pending_bets():
     return rows
 
 
+def get_match_result(
+    home_team,
+    away_team
+):
+
+    conn = get_db()
+
+    row = conn.execute(
+        """
+        SELECT
+            home_2up,
+            away_2up,
+            home_turnaround,
+            away_turnaround
+        FROM match_results
+        WHERE home_team = ?
+        AND away_team = ?
+        ORDER BY processed_at DESC
+        LIMIT 1
+        """,
+        (
+            home_team,
+            away_team
+        )
+    ).fetchone()
+
+    conn.close()
+
+    return row
+
+
+def update_bet_fta(
+    bet_id,
+    actual_fta
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        UPDATE tracked_bets
+        SET actual_fta = ?
+        WHERE id = ?
+        """,
+        (
+            actual_fta,
+            bet_id
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
+
+
+
 
 if __name__ == "__main__":
 
