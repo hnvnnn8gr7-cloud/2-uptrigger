@@ -53,6 +53,23 @@ def create_tables():
     """)
 
     conn.execute("""
+    CREATE TABLE IF NOT EXISTS team_aliases (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        alias TEXT UNIQUE,
+
+        canonical_name TEXT,
+
+        source TEXT,
+
+        created_at TEXT
+
+    )
+    """)
+
+
+    conn.execute("""
     CREATE TABLE IF NOT EXISTS odds_history (
 
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -589,6 +606,40 @@ def get_league_stats():
     conn.close()
 
     return rows
+
+
+def save_team_alias(
+    alias,
+    canonical_name,
+    source="manual"
+):
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO team_aliases
+        (
+            alias,
+            canonical_name,
+            source,
+            created_at
+        )
+        VALUES
+        (
+            ?, ?, ?,
+            datetime('now')
+        )
+        """,
+        (
+            alias,
+            canonical_name,
+            source
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
 
 
 if __name__ == "__main__":
