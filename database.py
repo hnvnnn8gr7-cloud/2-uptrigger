@@ -84,7 +84,7 @@ def create_tables():
 
         ?, ?
     )
-    """,
+    """),
 
 
 
