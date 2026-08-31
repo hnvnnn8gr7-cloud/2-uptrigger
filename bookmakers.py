@@ -1,122 +1,141 @@
 """
+"""
 2UP Master V3
 
-Approved bookmakers list.
+Approved bookmakers and exchanges.
 
-Only bookmakers in this file are allowed
-to appear in Opportunities.
-
-Bookmakers can be enabled/disabled without
-changing application logic.
+Only enabled providers will be used
+by odds_collector.py and displayed
+in Opportunities.
 """
 
 TWO_UP_BOOKMAKERS = {
 
     "bet365": {
         "display_name": "Bet365",
-        "enabled": True,
-        "two_up": True
-    },
-
-    "paddypower": {
-        "display_name": "Paddy Power",
+        "provider_type": "bookmaker",
         "enabled": True,
         "two_up": True
     },
 
     "skybet": {
         "display_name": "Sky Bet",
+        "provider_type": "bookmaker",
         "enabled": True,
         "two_up": True
     },
 
-    "williamhill": {
-        "display_name": "William Hill",
+    "betfair_exchange": {
+        "display_name": "Betfair Exchange",
+        "provider_type": "exchange",
         "enabled": True,
-        "two_up": True
-    },
-
-    "10bet": {
-        "display_name": "10Bet",
-        "enabled": True,
-        "two_up": True
-    },
-
-    "barone": {
-        "display_name": "Bar One Racing",
-        "enabled": True,
-        "two_up": True
-    },
-
-    "betfair_sb_uk": {
-        "display_name": "Betfair Sportsbook",
-        "enabled": False,
         "two_up": False
     }
 }
 
 
 def is_allowed_bookmaker(
-    bookmaker_key
+    provider_key
 ):
-    """
-    Returns True if bookmaker
-    is approved and enabled.
-    """
-
-    bookmaker_key = (
-        bookmaker_key
+    provider_key = (
+        provider_key
         .strip()
         .lower()
     )
 
-    bookmaker = (
+    provider = (
         TWO_UP_BOOKMAKERS.get(
-            bookmaker_key
+            provider_key
         )
     )
 
-    if not bookmaker:
+    if not provider:
         return False
 
-    return bookmaker[
-        "enabled"
-    ]
+    return provider["enabled"]
 
 
 def get_display_name(
-    bookmaker_key
+    provider_key
 ):
-    """
-    Converts API bookmaker
-    key to display name.
-    """
-
-    bookmaker_key = (
-        bookmaker_key
+    provider_key = (
+        provider_key
         .strip()
         .lower()
     )
 
-    bookmaker = (
+    provider = (
         TWO_UP_BOOKMAKERS.get(
-            bookmaker_key
+            provider_key
         )
     )
 
-    if bookmaker:
-
-        return bookmaker[
+    if provider:
+        return provider[
             "display_name"
         ]
 
-    return bookmaker_key
+    return provider_key
 
 
-def get_allowed_bookmakers():
-    """
-    Returns all enabled bookmakers.
-    """
+def get_provider_type(
+    provider_key
+):
+    provider_key = (
+        provider_key
+        .strip()
+        .lower()
+    )
+
+    provider = (
+        TWO_UP_BOOKMAKERS.get(
+            provider_key
+        )
+    )
+
+    if provider:
+        return provider[
+            "provider_type"
+        ]
+
+    return "unknown"
+
+
+def is_exchange(
+    provider_key
+):
+    return (
+        get_provider_type(
+            provider_key
+        )
+        == "exchange"
+    )
+
+
+def is_two_up_bookmaker(
+    provider_key
+):
+    provider_key = (
+        provider_key
+        .strip()
+        .lower()
+    )
+
+    provider = (
+        TWO_UP_BOOKMAKERS.get(
+            provider_key
+        )
+    )
+
+    if not provider:
+        return False
+
+    return provider[
+        "two_up"
+    ]
+
+
+def get_enabled_providers():
 
     return [
 
@@ -130,11 +149,7 @@ def get_allowed_bookmakers():
     ]
 
 
-def get_two_up_bookmakers():
-    """
-    Returns only bookmakers
-    offering 2UP.
-    """
+def get_enabled_bookmakers():
 
     return [
 
@@ -145,8 +160,26 @@ def get_two_up_bookmakers():
 
         if (
             value["enabled"]
-            and
-            value["two_up"]
+            and value["provider_type"]
+            == "bookmaker"
+        )
+
+    ]
+
+
+def get_enabled_exchanges():
+
+    return [
+
+        key
+
+        for key, value
+        in TWO_UP_BOOKMAKERS.items()
+
+        if (
+            value["enabled"]
+            and value["provider_type"]
+            == "exchange"
         )
 
     ]
@@ -155,13 +188,23 @@ def get_two_up_bookmakers():
 if __name__ == "__main__":
 
     print(
-        "Enabled bookmakers:"
+        "Bookmakers:"
     )
 
-    for bookmaker in (
-        get_allowed_bookmakers()
+    for provider in (
+        get_enabled_bookmakers()
     ):
-
         print(
-            bookmaker
+            provider
+        )
+
+    print(
+        "\nExchanges:"
+    )
+
+    for provider in (
+        get_enabled_exchanges()
+    ):
+        print(
+            provider
         )
