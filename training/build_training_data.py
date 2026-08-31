@@ -3,17 +3,40 @@ from datetime import datetime, timezone
 from database import get_db
 
 
+def get_league_turnaround_rate(
+    conn,
+    league
+):
+
+    row = conn.execute(
+        """
+        SELECT turnaround_rate
+        FROM league_stats
+        WHERE league = ?
+        """,
+        (league,)
+    ).fetchone()
+
+    if row:
+        return row[0]
+
+    return None
+
+
 def build_training_data():
 
     conn = get_db()
 
     conn.execute(
-        "DELETE FROM training_data"
+        """
+        DELETE FROM training_data
+        """
     )
 
     matches = conn.execute(
         """
         SELECT
+
             match_id,
             league,
 
@@ -63,13 +86,16 @@ def build_training_data():
 
                 two_up_trigger_rate,
 
-                historical_turnaround_rate
+                historical_turnaround_rate,
+
+                opponent_turnaround_rate
 
             FROM team_stats
-
             WHERE team = ?
             """,
-            (home_team,)
+            (
+                home_team,
+            )
         ).fetchone()
 
         away_stats = conn.execute(
@@ -86,13 +112,16 @@ def build_training_data():
 
                 two_up_trigger_rate,
 
-                historical_turnaround_rate
+                historical_turnaround_rate,
+
+                opponent_turnaround_rate
 
             FROM team_stats
-
             WHERE team = ?
             """,
-            (away_team,)
+            (
+                away_team,
+            )
         ).fetchone()
 
         if not home_stats:
@@ -101,13 +130,33 @@ def build_training_data():
         if not away_stats:
             continue
 
+        league_turnaround_rate = (
+            get_league_turnaround_rate(
+                conn,
+                league
+            )
+        )
+
+        home_xg_edge = (
+            (home_stats[0] or 0)
+            -
+            (home_stats[1] or 0)
+        )
+
+        away_xg_edge = (
+            (away_stats[0] or 0)
+            -
+            (away_stats[1] or 0)
+        )
+
         conn.execute(
             """
             INSERT INTO training_data
             (
-                match_id,
-                league,
 
+                match_id,
+
+                league,
                 team,
 
                 is_home,
@@ -118,6 +167,8 @@ def build_training_data():
                 avg_xg,
                 avg_xga,
 
+                xg_edge,
+
                 goals_last5,
                 conceded_last5,
 
@@ -126,6 +177,10 @@ def build_training_data():
                 two_up_trigger_rate,
 
                 historical_turnaround_rate,
+
+                league_turnaround_rate,
+
+                opponent_turnaround_rate,
 
                 lead_minute,
                 max_lead,
@@ -144,30 +199,66 @@ def build_training_data():
                 full_turnaround,
 
                 created_at
+
             )
 
             VALUES
             (
-                ?,?,?,?,?,?,
-                ?,?,?,?,?,?,
-                ?,?,?,?,?,?,
-                ?,?,?,?,?,?,
-                ?,?
+
+                ?, ?, ?,
+
+                ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?,
+
+                ?, ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?,
+
+                ?,
+
+                ?
+
             )
             """,
             (
-                match_id,
-                league,
 
+                match_id,
+
+                league,
                 home_team,
 
                 1,
 
-                0,
-                0,
+                None,
+                None,
 
                 home_stats[0],
                 home_stats[1],
+
+                home_xg_edge,
 
                 home_stats[2],
                 home_stats[3],
@@ -178,18 +269,23 @@ def build_training_data():
 
                 home_stats[6],
 
-                home_lead_minute or 0,
+                league_turnaround_rate,
+
+                home_stats[7],
+
+                home_lead_minute
+                or 0,
 
                 2,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
                 1.0,
 
@@ -198,6 +294,7 @@ def build_training_data():
                 datetime.now(
                     timezone.utc
                 ).isoformat()
+
             )
         )
 
@@ -205,9 +302,10 @@ def build_training_data():
             """
             INSERT INTO training_data
             (
-                match_id,
-                league,
 
+                match_id,
+
+                league,
                 team,
 
                 is_home,
@@ -218,6 +316,8 @@ def build_training_data():
                 avg_xg,
                 avg_xga,
 
+                xg_edge,
+
                 goals_last5,
                 conceded_last5,
 
@@ -226,6 +326,10 @@ def build_training_data():
                 two_up_trigger_rate,
 
                 historical_turnaround_rate,
+
+                league_turnaround_rate,
+
+                opponent_turnaround_rate,
 
                 lead_minute,
                 max_lead,
@@ -244,30 +348,66 @@ def build_training_data():
                 full_turnaround,
 
                 created_at
+
             )
 
             VALUES
             (
-                ?,?,?,?,?,?,
-                ?,?,?,?,?,?,
-                ?,?,?,?,?,?,
-                ?,?,?,?,?,?,
-                ?,?
+
+                ?, ?, ?,
+
+                ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?,
+
+                ?, ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?, ?,
+
+                ?,
+
+                ?,
+
+                ?
+
             )
             """,
             (
-                match_id,
-                league,
 
+                match_id,
+
+                league,
                 away_team,
 
                 0,
 
-                0,
-                0,
+                None,
+                None,
 
                 away_stats[0],
                 away_stats[1],
+
+                away_xg_edge,
 
                 away_stats[2],
                 away_stats[3],
@@ -278,18 +418,23 @@ def build_training_data():
 
                 away_stats[6],
 
-                away_lead_minute or 0,
+                league_turnaround_rate,
+
+                away_stats[7],
+
+                away_lead_minute
+                or 0,
 
                 2,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
-                0,
-                0,
+                None,
+                None,
 
                 1.0,
 
@@ -298,6 +443,7 @@ def build_training_data():
                 datetime.now(
                     timezone.utc
                 ).isoformat()
+
             )
         )
 
@@ -308,9 +454,11 @@ def build_training_data():
     conn.close()
 
     print(
-        f"{inserted} API training rows built"
+        f"{inserted} training rows built"
     )
 
 
 if __name__ == "__main__":
+
     build_training_data()
+    
