@@ -24,21 +24,30 @@ BET_COLUMNS = [
     "team",
     "league",
     "kickoff",
+
     "back_odds",
     "lay_odds",
+
     "stake",
-    "commission",
+
     "lay_stake",
-    "liability",
     "qualifying_loss",
+
     "fta_pct",
     "ev_pct",
+
     "expected_profit",
     "actual_profit",
+
     "result",
-    "model_version",
-    "created_at"
+    "created_at",
+
+    "commission",
+    "liability",
+
+    "model_version"
 ]
+
 
 
 st.set_page_config(
