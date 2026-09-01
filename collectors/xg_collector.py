@@ -136,8 +136,8 @@ def get_recent_fixtures():
     fixtures = []
 
     current_seasons = [
-        2025,
-        2026
+        2023,
+        2024
     ]
 
     for league in SUPPORTED_LEAGUES:
