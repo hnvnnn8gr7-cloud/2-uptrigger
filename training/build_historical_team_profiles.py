@@ -25,6 +25,10 @@ from database import (
     save_league_stats
 )
 
+from team_normalizer import (
+    normalize_team
+)
+
 CSV_FILE = (
     "data/2up_multi_league_dataset.csv"
 )
@@ -42,9 +46,11 @@ def build_profiles():
         df
     )
 
-    teams = df[
-        "trigger_team"
-    ].dropna().unique()
+    teams = (
+        df["trigger_team"]
+        .dropna()
+        .unique()
+    )
 
     updated = 0
 
@@ -55,7 +61,9 @@ def build_profiles():
         )
 
         team_df = df[
-            df["trigger_team"] == team
+            df["trigger_team"]
+            .apply(normalize_team)
+            == team
         ]
 
         matches = len(
@@ -111,7 +119,8 @@ def build_profiles():
             ):
 
                 league_df = df[
-                    df["league"] == league
+                    df["league"]
+                    == league
                 ]
 
                 league_two_up = len(
@@ -148,7 +157,8 @@ def build_profiles():
             league_turnaround_rate = round(
                 sum(
                     league_rates
-                ) /
+                )
+                /
                 len(
                     league_rates
                 ),
@@ -157,8 +167,7 @@ def build_profiles():
 
         conn.execute(
             """
-            INSERT OR IGNORE INTO
-            team_stats
+            INSERT OR IGNORE INTO team_stats
             (
                 team
             )
@@ -178,7 +187,7 @@ def build_profiles():
 
                 historical_two_up = ?,
 
-                historical_comebacks = ? ,
+                historical_comebacks = ?,
 
                 two_up_trigger_rate = ?,
 
@@ -214,7 +223,7 @@ def build_profiles():
         updated += 1
 
     #
-    # Fallback Team Profiles
+    # Create fallback profiles
     #
 
     fallback_added = 0
@@ -233,7 +242,9 @@ def build_profiles():
 
     for row in match_teams:
 
-        team = row[0]
+        team = normalize_team(
+            row[0]
+        )
 
         exists = conn.execute(
             """
