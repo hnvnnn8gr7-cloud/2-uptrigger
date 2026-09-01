@@ -96,10 +96,10 @@ def get_completed_fixtures():
 
     try:
 
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=60
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=60
     )
 
     response.raise_for_status()
