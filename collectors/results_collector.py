@@ -94,21 +94,35 @@ def get_completed_fixtures():
         f"fixtures?date={yesterday}&status=FT"
     )
 
+    try:
+
     response = requests.get(
         url,
         headers=HEADERS,
-        timeout=20
+        timeout=60
     )
+
+    response.raise_for_status()
+
+except Exception as exc:
 
     print(
-        f"Fixture request status: {response.status_code}"
+        f"API request failed: {exc}"
     )
 
-    data = response.json()
+    return []
 
-    fixtures = data.get(
-        "response",
-        []
+print(
+    f"Fixture request status: {response.status_code}"
+)
+
+data = response.json()
+
+fixtures = data.get(
+    "response",
+    []
+)
+
     )
 
     print(
