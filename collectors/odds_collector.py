@@ -271,7 +271,7 @@ def collect_odds():
 
            except Exception as exc:
 
-        if "429" in str(exc):
+            if "429" in str(exc):
 
             print(
                 "Rate limit reached. Sleeping for 60 seconds..."
