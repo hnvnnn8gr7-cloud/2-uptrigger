@@ -123,7 +123,6 @@ fixtures = data.get(
     []
 )
 
-    )
 
     print(
         f"Fixtures found: {len(fixtures)}"
