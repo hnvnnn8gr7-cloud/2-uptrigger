@@ -46,9 +46,11 @@ BASE_URL = "https://api.oddspapi.io/v4"
 
 SPORT_ID = 10
 
-LOOKAHEAD_DAYS = 2
+LOOKAHEAD_DAYS = 1
 
-REQUEST_DELAY = 5
+REQUEST_DELAY = 10
+
+CACHE_MINUTES = 30
 
 # ==================================
 # FIXTURES
@@ -206,7 +208,6 @@ def extract_match_odds(
 
 def collect_odds():
 
-
     bookmakers = (
         get_enabled_bookmakers()
     )
@@ -215,11 +216,17 @@ def collect_odds():
         get_fixtures()
     )
 
+    tracked_teams = (
+        get_tracked_teams()
+    )
+
     print(
         f"Found {len(fixtures)} fixtures"
     )
 
     saved_rows = 0
+
+    skipped_rows = 0
 
     for fixture in fixtures:
 
@@ -251,6 +258,30 @@ def collect_odds():
             )
         )
 
+        # Skip teams not in
+        # the ML database
+
+        if (
+            home_team not in tracked_teams
+            or
+            away_team not in tracked_teams
+        ):
+
+            skipped_rows += 1
+
+            continue
+
+        # Cache Protection
+
+        if fixture_recently_checked(
+            fixture_id,
+            CACHE_MINUTES
+        ):
+
+            skipped_rows += 1
+
+            continue
+
         for bookmaker in bookmakers:
 
             try:
@@ -272,16 +303,29 @@ def collect_odds():
                 if "home" in prices:
 
                     save_odds_history(
-                        match_id=fixture_id,
-                        kickoff=kickoff,
-                        league=league,
-                        home_team=home_team,
-                        away_team=away_team,
-                        selection=home_team,
-                        bookmaker=bookmaker,
-                        back_odds=prices[
-                            "home"
-                        ]
+                        match_id=
+                        fixture_id,
+
+                        kickoff=
+                        kickoff,
+
+                        league=
+                        league,
+
+                        home_team=
+                        home_team,
+
+                        away_team=
+                        away_team,
+
+                        selection=
+                        home_team,
+
+                        bookmaker=
+                        bookmaker,
+
+                        back_odds=
+                        prices["home"]
                     )
 
                     saved_rows += 1
@@ -289,16 +333,29 @@ def collect_odds():
                 if "away" in prices:
 
                     save_odds_history(
-                        match_id=fixture_id,
-                        kickoff=kickoff,
-                        league=league,
-                        home_team=home_team,
-                        away_team=away_team,
-                        selection=away_team,
-                        bookmaker=bookmaker,
-                        back_odds=prices[
-                            "away"
-                        ]
+                        match_id=
+                        fixture_id,
+
+                        kickoff=
+                        kickoff,
+
+                        league=
+                        league,
+
+                        home_team=
+                        home_team,
+
+                        away_team=
+                        away_team,
+
+                        selection=
+                        away_team,
+
+                        bookmaker=
+                        bookmaker,
+
+                        back_odds=
+                        prices["away"]
                     )
 
                     saved_rows += 1
@@ -309,13 +366,14 @@ def collect_odds():
 
             except Exception as exc:
 
-                if (
-                    "429"
-                    in str(exc)
-                ):
+                if "429" in str(exc):
 
                     print(
-                        "Rate limit reached. Sleeping for 60 seconds..."
+                        "Rate limit reached."
+                    )
+
+                    print(
+                        "Sleeping 60 seconds..."
                     )
 
                     time.sleep(60)
@@ -332,8 +390,17 @@ def collect_odds():
 
                 continue
 
+        update_fixture_cache(
+            fixture_id,
+            kickoff
+        )
+
     print(
-        f"Saved {saved_rows} rows."
+        f"Saved {saved_rows} odds rows"
+    )
+
+    print(
+        f"Skipped {skipped_rows} fixtures"
     )
 
 
