@@ -11,6 +11,18 @@ from sklearn.metrics import (
 
 from xgboost import XGBClassifier
 
+import sys
+from pathlib import Path
+
+sys.path.append(
+    str(
+        Path(__file__).resolve().parent.parent
+    )
+)
+
+from database import get_db
+
+
 from database import (
     get_db,
     save_model_run
