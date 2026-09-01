@@ -204,11 +204,6 @@ def extract_match_odds(
 
 def collect_odds():
 
-    print(
-        "Clearing odds history..."
-    )
-
-    clear_odds_history()
 
     bookmakers = (
         get_enabled_bookmakers()
