@@ -15,8 +15,8 @@ if str(PROJECT_ROOT) not in sys.path:
         str(PROJECT_ROOT)
     )
 
-
 from database import get_db
+from team_normalizer import normalize_team
 
 
 def get_league_turnaround_rate(
@@ -36,7 +36,7 @@ def get_league_turnaround_rate(
     if row:
         return row[0]
 
-    return None
+    return 0
 
 
 def build_training_data():
@@ -85,8 +85,15 @@ def build_training_data():
 
             home_lead_minute,
             away_lead_minute
-
         ) = match
+
+        home_team = normalize_team(
+            home_team
+        )
+
+        away_team = normalize_team(
+            away_team
+        )
 
         home_stats = conn.execute(
             """
@@ -107,6 +114,7 @@ def build_training_data():
                 opponent_turnaround_rate
 
             FROM team_stats
+
             WHERE team = ?
             """,
             (
@@ -133,6 +141,7 @@ def build_training_data():
                 opponent_turnaround_rate
 
             FROM team_stats
+
             WHERE team = ?
             """,
             (
@@ -141,9 +150,19 @@ def build_training_data():
         ).fetchone()
 
         if not home_stats:
+
+            print(
+                f"Missing home team: {home_team}"
+            )
+
             continue
 
         if not away_stats:
+
+            print(
+                f"Missing away team: {away_team}"
+            )
+
             continue
 
         league_turnaround_rate = (
@@ -165,104 +184,10 @@ def build_training_data():
             (away_stats[1] or 0)
         )
 
-        conn.execute(
-            """
-            INSERT INTO training_data
-            (
+        rows_to_insert = [
 
+            (
                 match_id,
-
-                league,
-                team,
-
-                is_home,
-
-                back_odds,
-                lay_odds,
-
-                avg_xg,
-                avg_xga,
-
-                xg_edge,
-
-                goals_last5,
-                conceded_last5,
-
-                turnaround_pct,
-
-                two_up_trigger_rate,
-
-                historical_turnaround_rate,
-
-                league_turnaround_rate,
-
-                opponent_turnaround_rate,
-
-                lead_minute,
-                max_lead,
-
-                opening_back_odds,
-                odds_movement,
-
-                red_cards_for,
-                red_cards_against,
-
-                shots_for,
-                shots_against,
-
-                sample_weight,
-
-                full_turnaround,
-
-                created_at
-
-            )
-
-            VALUES
-            (
-
-                ?, ?, ?,
-
-                ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?,
-
-                ?, ?,
-
-                ?,
-
-                ?,
-
-                ?,
-
-                ?,
-
-                ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?,
-
-                ?,
-
-                ?
-
-            )
-            """,
-            (
-
-                match_id,
-
                 league,
                 home_team,
 
@@ -287,10 +212,9 @@ def build_training_data():
 
                 league_turnaround_rate,
 
-                home_stats[7],
+                away_stats[4],
 
-                home_lead_minute
-                or 0,
+                home_lead_minute or 0,
 
                 2,
 
@@ -310,108 +234,10 @@ def build_training_data():
                 datetime.now(
                     timezone.utc
                 ).isoformat()
+            ),
 
-            )
-        )
-
-        conn.execute(
-            """
-            INSERT INTO training_data
             (
-
                 match_id,
-
-                league,
-                team,
-
-                is_home,
-
-                back_odds,
-                lay_odds,
-
-                avg_xg,
-                avg_xga,
-
-                xg_edge,
-
-                goals_last5,
-                conceded_last5,
-
-                turnaround_pct,
-
-                two_up_trigger_rate,
-
-                historical_turnaround_rate,
-
-                league_turnaround_rate,
-
-                opponent_turnaround_rate,
-
-                lead_minute,
-                max_lead,
-
-                opening_back_odds,
-                odds_movement,
-
-                red_cards_for,
-                red_cards_against,
-
-                shots_for,
-                shots_against,
-
-                sample_weight,
-
-                full_turnaround,
-
-                created_at
-
-            )
-
-            VALUES
-            (
-
-                ?, ?, ?,
-
-                ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?,
-
-                ?, ?,
-
-                ?,
-
-                ?,
-
-                ?,
-
-                ?,
-
-                ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?, ?,
-
-                ?,
-
-                ?,
-
-                ?
-
-            )
-            """,
-            (
-
-                match_id,
-
                 league,
                 away_team,
 
@@ -436,10 +262,9 @@ def build_training_data():
 
                 league_turnaround_rate,
 
-                away_stats[7],
+                home_stats[4],
 
-                away_lead_minute
-                or 0,
+                away_lead_minute or 0,
 
                 2,
 
@@ -459,14 +284,108 @@ def build_training_data():
                 datetime.now(
                     timezone.utc
                 ).isoformat()
-
             )
-        )
+        ]
+
+        for row in rows_to_insert:
+
+            conn.execute(
+                """
+                INSERT INTO training_data
+                (
+
+                    match_id,
+                    league,
+                    team,
+
+                    is_home,
+
+                    back_odds,
+                    lay_odds,
+
+                    avg_xg,
+                    avg_xga,
+
+                    xg_edge,
+
+                    goals_last5,
+                    conceded_last5,
+
+                    turnaround_pct,
+
+                    two_up_trigger_rate,
+
+                    historical_turnaround_rate,
+
+                    league_turnaround_rate,
+
+                    opponent_turnaround_rate,
+
+                    lead_minute,
+                    max_lead,
+
+                    opening_back_odds,
+                    odds_movement,
+
+                    red_cards_for,
+                    red_cards_against,
+
+                    shots_for,
+                    shots_against,
+
+                    sample_weight,
+
+                    full_turnaround,
+
+                    created_at
+
+                )
+
+                VALUES
+                (
+                    ?, ?, ?,
+
+                    ?,
+
+                    ?, ?,
+
+                    ?, ?,
+
+                    ?,
+
+                    ?, ?,
+
+                    ?,
+
+                    ?,
+
+                    ?,
+
+                    ?,
+
+                    ?,
+
+                    ?, ?,
+
+                    ?, ?,
+
+                    ?, ?,
+
+                    ?, ?,
+
+                    ?,
+
+                    ?,
+
+                    ?
+                )
+                """,
+                row
+            )
 
         inserted += 2
 
     conn.commit()
-
     conn.close()
 
     print(
@@ -477,4 +396,3 @@ def build_training_data():
 if __name__ == "__main__":
 
     build_training_data()
-    
