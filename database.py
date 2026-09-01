@@ -1,4 +1,8 @@
 import sqlite3
+from datetime import (
+    datetime,
+    timezone
+)
 
 DB_NAME = "two_up.db"
 
@@ -249,6 +253,19 @@ def create_tables():
 
     )
     """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS fixture_cache (
+
+        fixture_id TEXT PRIMARY KEY,
+
+        kickoff TEXT,
+
+        last_checked TEXT
+
+    )
+    """)
+
 
     conn.execute("""
     CREATE TABLE IF NOT EXISTS model_runs (
@@ -1012,8 +1029,68 @@ def update_bet_fta(
     conn.close()
 
 
+def get_tracked_teams():
 
+    conn = get_db()
 
+    rows = conn.execute(
+        """
+        SELECT team
+        FROM team_stats
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        row[0]
+        for row in rows
+    }
+
+def fixture_recently_checked(
+    fixture_id,
+    minutes=30
+):
+
+    conn = get_db()
+
+    row = conn.execute(
+        """
+        SELECT last_checked
+        FROM fixture_cache
+        WHERE fixture_id = ?
+        """,
+        (
+            fixture_id,
+        )
+    ).fetchone()
+
+    conn.close()
+
+    if not row:
+        return False
+
+    last_checked = (
+        datetime.fromisoformat(
+            row[0]
+        )
+    )
+
+    age = (
+        datetime.now(
+            timezone.utc
+        )
+        -
+        last_checked
+    )
+
+    return (
+        age.total_seconds()
+        <
+        (
+            minutes * 60
+        )
+    )
 
 if __name__ == "__main__":
 
