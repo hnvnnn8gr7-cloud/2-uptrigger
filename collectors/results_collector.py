@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta, timezone
 import sqlite3
 import requests
+
 from constants import (
     SUPPORTED_LEAGUES
 )
 
-API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
+API_FOOTBALL_KEY = "YOUR_API_FOOTBALL_KEY"
 
 DB_NAME = "two_up.db"
 
@@ -133,7 +134,6 @@ def get_completed_fixtures():
     return fixtures
 
 
-
 def get_fixture_events(
     fixture_id
 ):
@@ -172,9 +172,6 @@ def detect_2up_turnaround(
     home_lead_minute = 0
     away_lead_minute = 0
 
-    max_home_lead = 0
-    max_away_lead = 0
-
     for event in events:
 
         if event.get("type") != "Goal":
@@ -194,52 +191,37 @@ def detect_2up_turnaround(
         elif scoring_team == away_team:
             away_score += 1
 
-        current_home_lead = (
+        if (
             home_score - away_score
-        )
-
-        current_away_lead = (
-            away_score - home_score
-        )
-
-        max_home_lead = max(
-            max_home_lead,
-            current_home_lead
-        )
-
-        max_away_lead = max(
-            max_away_lead,
-            current_away_lead
-        )
-
-        if current_home_lead >= 2:
+        ) >= 2:
 
             home_2up = True
 
             if home_lead_minute == 0:
                 home_lead_minute = minute
 
-        if current_away_lead >= 2:
+        if (
+            away_score - home_score
+        ) >= 2:
 
             away_2up = True
 
             if away_lead_minute == 0:
                 away_lead_minute = minute
 
-    final_home = home_score
-    final_away = away_score
-
     home_turnaround = int(
-        home_2up and final_home <= final_away
+        home_2up and
+        home_score <= away_score
     )
 
     away_turnaround = int(
-        away_2up and final_away <= final_home
+        away_2up and
+        away_score <= home_score
     )
 
     return (
-        final_home,
-        final_away,
+        home_score,
+        away_score,
 
         int(home_2up),
         int(away_2up),
@@ -298,7 +280,6 @@ def save_result(
         )
 
         VALUES
-
         (
             ?,?,?,?,?,?,
             ?,?,?,?,?,?,
@@ -341,6 +322,7 @@ def process_results():
 
     processed = 0
     skipped = 0
+    unsupported = 0
 
     for fixture in fixtures:
 
@@ -357,6 +339,11 @@ def process_results():
         league = (
             fixture["league"]["name"]
         )
+
+        if league not in SUPPORTED_LEAGUES:
+
+            unsupported += 1
+            continue
 
         home_team = (
             fixture["teams"]["home"]["name"]
@@ -395,13 +382,18 @@ def process_results():
         processed += 1
 
     print(
-        f"{processed} new fixtures processed"
+        f"{processed} fixtures processed"
     )
 
     print(
         f"{skipped} fixtures skipped"
     )
 
+    print(
+        f"{unsupported} unsupported leagues ignored"
+    )
+
 
 if __name__ == "__main__":
+
     process_results()
