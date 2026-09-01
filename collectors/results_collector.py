@@ -6,7 +6,7 @@ from constants import (
     SUPPORTED_LEAGUES
 )
 
-API_FOOTBALL_KEY = "YOUR_API_FOOTBALL_KEY"
+API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
 
 DB_NAME = "two_up.db"
 
