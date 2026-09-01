@@ -422,6 +422,15 @@ def process_results():
             events
         )
 
+        home_team = normalize_team(
+            home_team
+        )
+
+        away_team = normalize_team(
+            away_team
+        )
+
+
         save_result(
             fixture_id,
             league,
