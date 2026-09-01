@@ -1,5 +1,4 @@
 """
-"""
 2UP Master V3
 
 Approved bookmakers and exchanges.
