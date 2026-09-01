@@ -33,7 +33,7 @@ def create_tables():
     back_odds REAL,
     lay_odds REAL,
 
-    estimated_lay REAL,
+    estimated_lay INTEGER,
 
     stake REAL,
     commission REAL,
