@@ -23,7 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from database import get_db
 
 CSV_FILE = (
-    "2up_multi_league_dataset.csv"
+    "data/2up_multi_league_dataset.csv"
 )
 
 
