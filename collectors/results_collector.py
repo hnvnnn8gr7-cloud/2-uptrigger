@@ -100,35 +100,35 @@ def get_completed_fixtures():
             url,
             headers=HEADERS,
             timeout=60
-    )
+        )
 
-         response.raise_for_status()
+        response.raise_for_status()
 
-except Exception as exc:
+    except Exception as exc:
+
+        print(
+            f"API request failed: {exc}"
+        )
+
+        return []
 
     print(
-        f"API request failed: {exc}"
+        f"Fixture request status: {response.status_code}"
     )
 
-    return []
+    data = response.json()
 
-print(
-    f"Fixture request status: {response.status_code}"
-)
-
-data = response.json()
-
-fixtures = data.get(
-    "response",
-    []
-)
-
+    fixtures = data.get(
+        "response",
+        []
+    )
 
     print(
         f"Fixtures found: {len(fixtures)}"
     )
 
     return fixtures
+
 
 
 def get_fixture_events(
