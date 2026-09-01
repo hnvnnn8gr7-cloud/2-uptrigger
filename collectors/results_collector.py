@@ -1,36 +1,30 @@
-from datetime import datetime, timedelta, timezone
-import sqlite3
-import requests
-
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = (
-    Path(__file__)
-    .resolve()
-    .parent
-    .parent
+from datetime import (
+    datetime,
+    timedelta,
+    timezone
 )
 
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(
-        str(PROJECT_ROOT)
-    )
+import sqlite3
+import requests
 
 from constants import (
     SUPPORTED_LEAGUES
 )
 
-API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
+API_FOOTBALL_KEY = "YOUR_API_FOOTBALL_KEY"
 
 DB_NAME = "two_up.db"
 
+LOOKBACK_DAYS = 2
+
 HEADERS = {
-    "x-apisports-key": API_FOOTBALL_KEY
+    "x-apisports-key":
+        API_FOOTBALL_KEY
 }
 
 
 def get_db():
+
     return sqlite3.connect(
         DB_NAME,
         check_same_thread=False
@@ -64,7 +58,9 @@ def fixture_already_processed(
         FROM processed_fixtures
         WHERE fixture_id = ?
         """,
-        (str(fixture_id),)
+        (
+            str(fixture_id),
+        )
     ).fetchone()
 
     conn.close()
@@ -86,10 +82,12 @@ def mark_fixture_processed(
             fixture_id,
             processed_at
         )
-        VALUES (?, ?)
+        VALUES
+        (?, ?)
         """,
         (
             str(fixture_id),
+
             datetime.now(
                 timezone.utc
             ).isoformat()
@@ -102,60 +100,67 @@ def mark_fixture_processed(
 
 def get_completed_fixtures():
 
-    from_date = (
-        datetime.now(
-            timezone.utc
-        ) - timedelta(days=2)
-    ).strftime(
-        "%Y-%m-%d"
-    )
+    fixtures = []
 
-    to_date = (
-        datetime.now(
-            timezone.utc
-        )
-    ).strftime(
-        "%Y-%m-%d"
-    )
+    for day in range(
+        LOOKBACK_DAYS
+    ):
 
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures?from={from_date}"
-        f"&to={to_date}"
-        "&status=FT"
-    )
-
-    try:
-
-        response = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=60
+        target_date = (
+            datetime.now(
+                timezone.utc
+            )
+            -
+            timedelta(days=day + 1)
+        ).strftime(
+            "%Y-%m-%d"
         )
 
-        response.raise_for_status()
+        url = (
+            "https://v3.football.api-sports.io/"
+            f"fixtures?date={target_date}"
+            "&status=FT"
+        )
 
-    except Exception as exc:
+        try:
+
+            response = requests.get(
+                url,
+                headers=HEADERS,
+                timeout=60
+            )
+
+            response.raise_for_status()
+
+        except Exception as exc:
+
+            print(
+                f"API request failed: {exc}"
+            )
+
+            continue
+
+        data = response.json()
+
+        day_fixtures = data.get(
+            "response",
+            []
+        )
 
         print(
-            f"API request failed: {exc}"
+            f"{target_date}: "
+            f"{len(day_fixtures)} fixtures"
         )
 
-        return []
-
-    data = response.json()
-
-    fixtures = data.get(
-        "response",
-        []
-    )
+        fixtures.extend(
+            day_fixtures
+        )
 
     print(
         f"Fixtures found: {len(fixtures)}"
     )
 
     return fixtures
-
 
 
 def get_fixture_events(
@@ -198,7 +203,9 @@ def detect_2up_turnaround(
 
     for event in events:
 
-        if event.get("type") != "Goal":
+        if event.get(
+            "type"
+        ) != "Goal":
             continue
 
         scoring_team = (
@@ -210,42 +217,53 @@ def detect_2up_turnaround(
         )
 
         if scoring_team == home_team:
+
             home_score += 1
 
         elif scoring_team == away_team:
+
             away_score += 1
 
-        if (
+        home_lead = (
             home_score - away_score
-        ) >= 2:
+        )
+
+        away_lead = (
+            away_score - home_score
+        )
+
+        if home_lead >= 2:
 
             home_2up = True
 
             if home_lead_minute == 0:
+
                 home_lead_minute = minute
 
-        if (
-            away_score - home_score
-        ) >= 2:
+        if away_lead >= 2:
 
             away_2up = True
 
             if away_lead_minute == 0:
+
                 away_lead_minute = minute
+
+    final_home = home_score
+    final_away = away_score
 
     home_turnaround = int(
         home_2up and
-        home_score <= away_score
+        final_home <= final_away
     )
 
     away_turnaround = int(
         away_2up and
-        away_score <= home_score
+        final_away <= final_home
     )
 
     return (
-        home_score,
-        away_score,
+        final_home,
+        final_away,
 
         int(home_2up),
         int(away_2up),
@@ -284,7 +302,9 @@ def save_result(
         INSERT INTO match_results
         (
             match_id,
+
             league,
+
             home_team,
             away_team,
 
@@ -312,7 +332,9 @@ def save_result(
         """,
         (
             str(fixture_id),
+
             league,
+
             home_team,
             away_team,
 
@@ -342,7 +364,9 @@ def process_results():
 
     create_processed_fixtures_table()
 
-    fixtures = get_completed_fixtures()
+    fixtures = (
+        get_completed_fixtures()
+    )
 
     processed = 0
     skipped = 0
@@ -357,6 +381,7 @@ def process_results():
         if fixture_already_processed(
             fixture_id
         ):
+
             skipped += 1
             continue
 
@@ -375,10 +400,6 @@ def process_results():
 
         away_team = (
             fixture["teams"]["away"]["name"]
-        )
-
-        print(
-            f"Processing fixture {fixture_id}"
         )
 
         events = get_fixture_events(
