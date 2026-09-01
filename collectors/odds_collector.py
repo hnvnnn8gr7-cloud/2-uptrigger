@@ -39,9 +39,9 @@ BASE_URL = "https://api.oddspapi.io/v4"
 
 SPORT_ID = 10
 
-LOOKAHEAD_DAYS = 7
+LOOKAHEAD_DAYS = 2
 
-REQUEST_DELAY = 2.1
+REQUEST_DELAY = 5
 
 # ==================================
 # FIXTURES
@@ -258,16 +258,44 @@ def collect_odds():
             )
         )
 
-        for bookmaker in bookmakers:
+        for bookmaker in enabled_bookmakers:
 
-            try:
+    try:
 
-                odds_data = (
-                    get_fixture_odds(
-                        fixture_id,
-                        bookmaker
-                    )
-                )
+        odds_data = (
+            get_fixture_odds(
+                fixture_id,
+                bookmaker
+            )
+        )
+
+    except Exception as exc:
+
+        if "429" in str(exc):
+
+            print(
+                "Rate limit reached. Sleeping for 60 seconds..."
+            )
+
+            time.sleep(60)
+
+            continue
+
+        print(
+            f"Failed {fixture_id} {bookmaker}"
+        )
+
+        print(exc)
+
+        continue
+
+    prices = (
+        extract_match_odds(
+            odds_data,
+            bookmaker
+        )
+    )
+
 
                 prices = (
                     extract_match_odds(
