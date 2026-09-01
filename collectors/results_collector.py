@@ -102,15 +102,27 @@ def mark_fixture_processed(
 
 def get_completed_fixtures():
 
-    yesterday = (
+    from_date = (
         datetime.now(
             timezone.utc
-        ) - timedelta(days=1)
-    ).strftime("%Y-%m-%d")
+        ) - timedelta(days=2)
+    ).strftime(
+        "%Y-%m-%d"
+    )
+
+    to_date = (
+        datetime.now(
+            timezone.utc
+        )
+    ).strftime(
+        "%Y-%m-%d"
+    )
 
     url = (
         "https://v3.football.api-sports.io/"
-        f"fixtures?date={yesterday}&status=FT"
+        f"fixtures?from={from_date}"
+        f"&to={to_date}"
+        "&status=FT"
     )
 
     try:
@@ -131,10 +143,6 @@ def get_completed_fixtures():
 
         return []
 
-    print(
-        f"Fixture request status: {response.status_code}"
-    )
-
     data = response.json()
 
     fixtures = data.get(
@@ -147,6 +155,7 @@ def get_completed_fixtures():
     )
 
     return fixtures
+
 
 
 def get_fixture_events(
