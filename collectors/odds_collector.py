@@ -23,7 +23,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from database import (
     save_odds_history,
-    clear_odds_history
+    fixture_recently_checked,
+    update_fixture_cache
 )
 
 from team_normalizer import (
@@ -38,7 +39,7 @@ from bookmakers import (
 # CONFIG
 # ==================================
 
-API_KEY = "YOUR_ODDSPAPI_API_KEY"
+API_KEY = "cb23a6f3-5d30-47f1-8f0c-33137e430799"
 
 BASE_URL = "https://api.oddspapi.io/v4"
 
