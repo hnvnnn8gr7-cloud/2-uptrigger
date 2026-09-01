@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
 import sqlite3
 import requests
+from constants import (
+    SUPPORTED_LEAGUES
+)
 
 API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
 
