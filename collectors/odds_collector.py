@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from database import (
     save_odds_history,
+    get_tracked_teams,
     fixture_recently_checked,
     update_fixture_cache
 )
