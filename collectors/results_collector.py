@@ -121,7 +121,7 @@ def get_completed_fixtures():
                 timezone.utc
             )
             -
-            timedelta(days=day + 1)
+            timedelta(days=day)
         ).strftime(
             "%Y-%m-%d"
         )
