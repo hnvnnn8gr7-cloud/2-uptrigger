@@ -78,6 +78,19 @@ def create_tables():
 
 
     conn.execute("""
+    CREATE TABLE IF NOT EXISTS fixture_cache (
+
+        fixture_id TEXT PRIMARY KEY,
+
+        last_checked TEXT,
+
+        kickoff TEXT
+
+    )
+    """)
+
+
+    conn.execute("""
     CREATE TABLE IF NOT EXISTS odds_history (
 
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -884,6 +897,90 @@ def get_match_result(
     conn.close()
 
     return row
+
+def fixture_recently_checked(
+    fixture_id,
+    minutes=30
+):
+
+    conn = get_db()
+
+    row = conn.execute(
+        """
+        SELECT last_checked
+        FROM fixture_cache
+        WHERE fixture_id = ?
+        """,
+        (
+            fixture_id,
+        )
+    ).fetchone()
+
+    conn.close()
+
+    if not row:
+        return False
+
+    from datetime import (
+        datetime,
+        timezone
+    )
+
+    last_checked = (
+        datetime.fromisoformat(
+            row[0]
+        )
+    )
+
+    age = (
+        datetime.now(
+            timezone.utc
+        )
+        -
+        last_checked
+    )
+
+    return (
+        age.total_seconds()
+        <
+        (
+            minutes * 60
+        )
+    )
+
+
+def update_fixture_cache(
+    fixture_id,
+    kickoff
+):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO
+        fixture_cache
+        (
+            fixture_id,
+            kickoff,
+            last_checked
+        )
+        VALUES
+        (
+            ?,
+            ?,
+            datetime('now')
+        )
+        """,
+        (
+            fixture_id,
+            kickoff
+        )
+    )
+
+    conn.commit()
+    conn.close()
+
 
 
 def update_bet_fta(
