@@ -836,19 +836,6 @@ def get_latest_odds():
     return rows
 
 
-def clear_odds_history():
-
-    conn = get_db()
-
-    conn.execute(
-        """
-        DELETE FROM odds_history
-        """
-    )
-
-    conn.commit()
-    conn.close()
-
 
 def get_pending_bets():
 
