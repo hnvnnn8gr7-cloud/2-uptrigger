@@ -9,14 +9,19 @@ from datetime import (
 import sys
 from pathlib import Path
 
-sys.path.append(
-    str(
-        Path(__file__).resolve().parent.parent
-    )
+PROJECT_ROOT = (
+    Path(__file__)
+    .resolve()
+    .parent
+    .parent
 )
 
-from database import (
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(
+        str(PROJECT_ROOT)
+    )
 
+from database import (
     save_odds_history,
     clear_odds_history
 )
@@ -33,7 +38,7 @@ from bookmakers import (
 # CONFIG
 # ==================================
 
-API_KEY = "cb23a6f3-5d30-47f1-8f0c-33137e430799"
+API_KEY = "YOUR_ODDSPAPI_API_KEY"
 
 BASE_URL = "https://api.oddspapi.io/v4"
 
@@ -49,9 +54,6 @@ REQUEST_DELAY = 5
 
 
 def get_fixtures():
-    """
-    Retrieve upcoming fixtures.
-    """
 
     now = datetime.utcnow()
 
@@ -93,9 +95,6 @@ def get_fixture_odds(
     fixture_id,
     bookmaker
 ):
-    """
-    Retrieve odds for one fixture.
-    """
 
     response = requests.get(
         f"{BASE_URL}/odds",
@@ -124,9 +123,6 @@ def extract_match_odds(
     odds_data,
     bookmaker
 ):
-    """
-    Extract home / draw / away prices.
-    """
 
     bookmaker_data = (
         odds_data
@@ -182,21 +178,21 @@ def extract_match_odds(
 
                 if outcome_id == "home":
 
-                    prices[
-                        "home"
-                    ] = float(price)
+                    prices["home"] = float(
+                        price
+                    )
 
                 elif outcome_id == "away":
 
-                    prices[
-                        "away"
-                    ] = float(price)
+                    prices["away"] = float(
+                        price
+                    )
 
                 elif outcome_id == "draw":
 
-                    prices[
-                        "draw"
-                    ] = float(price)
+                    prices["draw"] = float(
+                        price
+                    )
 
     return prices
 
@@ -230,17 +226,17 @@ def collect_odds():
 
     for fixture in fixtures:
 
-        fixture_id = fixture[
-            "fixtureId"
-        ]
+        fixture_id = (
+            fixture["fixtureId"]
+        )
 
-        kickoff = fixture[
-            "startTime"
-        ]
+        kickoff = (
+            fixture["startTime"]
+        )
 
-        league = fixture[
-            "tournamentName"
-        ]
+        league = (
+            fixture["tournamentName"]
+        )
 
         home_team = (
             normalize_team(
@@ -258,44 +254,16 @@ def collect_odds():
             )
         )
 
-        for bookmaker in enabled_bookmakers:
+        for bookmaker in bookmakers:
 
-          try:
+            try:
 
-           odds_data = (
-            get_fixture_odds(
-                fixture_id,
-                bookmaker
-            )
-        )
-
-           except Exception as exc:
-
-            if "429" in str(exc):
-
-            print(
-                "Rate limit reached. Sleeping for 60 seconds..."
-            )
-
-            time.sleep(60)
-
-            continue
-
-        print(
-            f"Failed {fixture_id} {bookmaker}"
-        )
-
-        print(exc)
-
-        continue
-
-    prices = (
-        extract_match_odds(
-            odds_data,
-            bookmaker
-        )
-    )
-
+                odds_data = (
+                    get_fixture_odds(
+                        fixture_id,
+                        bookmaker
+                    )
+                )
 
                 prices = (
                     extract_match_odds(
@@ -304,70 +272,34 @@ def collect_odds():
                     )
                 )
 
-                if (
-                    "home"
-                    in prices
-                ):
+                if "home" in prices:
 
                     save_odds_history(
-                        match_id=
-                        fixture_id,
-
-                        kickoff=
-                        kickoff,
-
-                        league=
-                        league,
-
-                        home_team=
-                        home_team,
-
-                        away_team=
-                        away_team,
-
-                        selection=
-                        home_team,
-
-                        bookmaker=
-                        bookmaker,
-
-                        back_odds=
-                        prices[
+                        match_id=fixture_id,
+                        kickoff=kickoff,
+                        league=league,
+                        home_team=home_team,
+                        away_team=away_team,
+                        selection=home_team,
+                        bookmaker=bookmaker,
+                        back_odds=prices[
                             "home"
                         ]
                     )
 
                     saved_rows += 1
 
-                if (
-                    "away"
-                    in prices
-                ):
+                if "away" in prices:
 
                     save_odds_history(
-                        match_id=
-                        fixture_id,
-
-                        kickoff=
-                        kickoff,
-
-                        league=
-                        league,
-
-                        home_team=
-                        home_team,
-
-                        away_team=
-                        away_team,
-
-                        selection=
-                        away_team,
-
-                        bookmaker=
-                        bookmaker,
-
-                        back_odds=
-                        prices[
+                        match_id=fixture_id,
+                        kickoff=kickoff,
+                        league=league,
+                        home_team=home_team,
+                        away_team=away_team,
+                        selection=away_team,
+                        bookmaker=bookmaker,
+                        back_odds=prices[
                             "away"
                         ]
                     )
@@ -380,6 +312,19 @@ def collect_odds():
 
             except Exception as exc:
 
+                if (
+                    "429"
+                    in str(exc)
+                ):
+
+                    print(
+                        "Rate limit reached. Sleeping for 60 seconds..."
+                    )
+
+                    time.sleep(60)
+
+                    continue
+
                 print(
                     f"[ERROR] "
                     f"{fixture_id} "
@@ -387,6 +332,8 @@ def collect_odds():
                 )
 
                 print(exc)
+
+                continue
 
     print(
         f"Saved {saved_rows} rows."
