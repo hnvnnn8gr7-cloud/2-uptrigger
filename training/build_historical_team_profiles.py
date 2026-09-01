@@ -20,7 +20,6 @@ if str(PROJECT_ROOT) not in sys.path:
         str(PROJECT_ROOT)
     )
 
-
 from database import (
     get_db,
     save_league_stats
@@ -52,9 +51,7 @@ def build_profiles():
     for team in teams:
 
         team_df = df[
-            df[
-                "trigger_team"
-            ] == team
+            df["trigger_team"] == team
         ]
 
         matches = len(
@@ -83,11 +80,8 @@ def build_profiles():
 
             trigger_rate = round(
                 (
-                    two_up
-                    /
-                    matches
-                )
-                * 100,
+                    two_up / matches
+                ) * 100,
                 2
             )
 
@@ -97,11 +91,8 @@ def build_profiles():
 
             turnaround_rate = round(
                 (
-                    comebacks
-                    /
-                    two_up
-                )
-                * 100,
+                    comebacks / two_up
+                ) * 100,
                 2
             )
 
@@ -116,8 +107,7 @@ def build_profiles():
             ):
 
                 league_df = df[
-                    df["league"]
-                    == league
+                    df["league"] == league
                 ]
 
                 league_two_up = len(
@@ -154,8 +144,7 @@ def build_profiles():
             league_turnaround_rate = round(
                 sum(
                     league_rates
-                )
-                /
+                ) /
                 len(
                     league_rates
                 ),
@@ -185,7 +174,7 @@ def build_profiles():
 
                 historical_two_up = ?,
 
-                historical_comebacks = ?,
+                historical_comebacks = ? ,
 
                 two_up_trigger_rate = ?,
 
@@ -220,11 +209,115 @@ def build_profiles():
 
         updated += 1
 
+    #
+    # Fallback Team Profiles
+    #
+
+    fallback_added = 0
+
+    match_teams = conn.execute(
+        """
+        SELECT DISTINCT home_team
+        FROM match_results
+
+        UNION
+
+        SELECT DISTINCT away_team
+        FROM match_results
+        """
+    ).fetchall()
+
+    for row in match_teams:
+
+        team = row[0]
+
+        exists = conn.execute(
+            """
+            SELECT team
+            FROM team_stats
+            WHERE team = ?
+            """,
+            (team,)
+        ).fetchone()
+
+        if exists:
+            continue
+
+        conn.execute(
+            """
+            INSERT INTO team_stats
+            (
+
+                team,
+
+                avg_xg,
+                avg_xga,
+
+                goals_last5,
+                conceded_last5,
+
+                turnaround_pct,
+
+                two_up_trigger_rate,
+
+                historical_turnaround_rate,
+
+                league_turnaround_rate,
+
+                opponent_turnaround_rate,
+
+                matches_played,
+
+                updated_at
+
+            )
+
+            VALUES
+            (
+
+                ?,
+
+                0,
+                0,
+
+                0,
+                0,
+
+                0,
+
+                0,
+
+                0,
+
+                0,
+
+                0,
+
+                0,
+
+                ?
+            )
+            """,
+            (
+                team,
+
+                datetime.now(
+                    timezone.utc
+                ).isoformat()
+            )
+        )
+
+        fallback_added += 1
+
     conn.commit()
     conn.close()
 
     print(
         f"{updated} historical team profiles built"
+    )
+
+    print(
+        f"{fallback_added} fallback profiles created"
     )
 
 
@@ -273,11 +366,8 @@ def build_league_statistics(
 
             trigger_rate = round(
                 (
-                    two_up
-                    /
-                    matches
-                )
-                * 100,
+                    two_up / matches
+                ) * 100,
                 2
             )
 
@@ -287,11 +377,8 @@ def build_league_statistics(
 
             turnaround_rate = round(
                 (
-                    comebacks
-                    /
-                    two_up
-                )
-                * 100,
+                    comebacks / two_up
+                ) * 100,
                 2
             )
 
