@@ -1,15 +1,13 @@
 from datetime import (
     datetime,
-    timedelta,
     timezone
 )
 
 import sqlite3
 import requests
 
-
 API_FOOTBALL_KEY = (
-    "aa7c72b2db786ed876c98fdafd5274b4"
+    "YOUR_API_FOOTBALL_KEY"
 )
 
 DB_NAME = "two_up.db"
@@ -18,6 +16,41 @@ HEADERS = {
     "x-apisports-key":
         API_FOOTBALL_KEY
 }
+
+SUPPORTED_LEAGUES = [
+
+    39,   # Premier League
+    40,   # Championship
+    41,   # League One
+    42,   # League Two
+
+    179,  # Scottish Premiership
+
+    78,   # Bundesliga
+    79,   # 2 Bundesliga
+
+    140,  # La Liga
+
+    135,  # Serie A
+
+    61,   # Ligue 1
+
+    88,   # Eredivisie
+
+    144,  # Belgian Pro League
+
+    94,   # Primeira Liga
+
+    253,  # MLS
+
+    119,  # Danish Superliga
+
+    103,  # Eliteserien
+
+    113,  # Allsvenskan
+
+    357   # Irish Premier Division
+]
 
 
 def get_db():
@@ -46,8 +79,7 @@ def save_team_stats(
 
     conn.execute(
         """
-        INSERT OR IGNORE INTO
-        team_stats
+        INSERT OR IGNORE INTO team_stats
         (
             team
         )
@@ -101,53 +133,94 @@ def save_team_stats(
 
 def get_recent_fixtures():
 
-    date_from = (
-        datetime.utcnow()
-        - timedelta(days=60)
-    ).strftime(
-        "%Y-%m-%d"
+    fixtures = []
+
+    current_seasons = [
+        2025,
+        2026
+    ]
+
+    for league in SUPPORTED_LEAGUES:
+
+        found = False
+
+        for season in current_seasons:
+
+            try:
+
+                response = requests.get(
+                    (
+                        "https://v3.football.api-sports.io/"
+                        f"fixtures?league={league}"
+                        f"&season={season}"
+                        "&status=FT"
+                    ),
+                    headers=HEADERS,
+                    timeout=60
+                )
+
+                response.raise_for_status()
+
+                data = response.json()
+
+                rows = data.get(
+                    "response",
+                    []
+                )
+
+                if rows:
+
+                    fixtures.extend(
+                        rows[-50:]
+                    )
+
+                    found = True
+
+                    break
+
+            except Exception:
+                continue
+
+        if not found:
+
+            print(
+                f"No fixtures found for league {league}"
+            )
+
+    print(
+        f"Fixtures found: {len(fixtures)}"
     )
 
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures?from={date_from}"
-    )
-
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=30
-    )
-
-    data = response.json()
-
-    return data.get(
-        "response",
-        []
-    )
+    return fixtures
 
 
 def get_fixture_statistics(
     fixture_id
 ):
 
-    url = (
-        "https://v3.football.api-sports.io/"
-        f"fixtures/statistics?fixture={fixture_id}"
-    )
+    try:
 
-    response = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=30
-    )
+        response = requests.get(
+            (
+                "https://v3.football.api-sports.io/"
+                f"fixtures/statistics?fixture={fixture_id}"
+            ),
+            headers=HEADERS,
+            timeout=60
+        )
 
-    data = response.json()
+        response.raise_for_status()
 
-    return data.get(
-        "response",
-        []
-    )
+        data = response.json()
+
+        return data.get(
+            "response",
+            []
+        )
+
+    except Exception:
+
+        return []
 
 
 def extract_stat(
@@ -157,13 +230,11 @@ def extract_stat(
 
     for item in stats:
 
-        if (
-            item["type"]
-            == stat_name
-        ):
+        if item["type"] == stat_name:
+
             return item["value"]
 
-    return 0
+    return None
 
 
 def process_xg():
@@ -229,8 +300,8 @@ def process_xg():
             home_xg = float(
                 home_xg
             )
-        except:
-            home_xg = (
+        except Exception:
+            home_xg = float(
                 home_goals
             )
 
@@ -238,8 +309,8 @@ def process_xg():
             away_xg = float(
                 away_xg
             )
-        except:
-            away_xg = (
+        except Exception:
+            away_xg = float(
                 away_goals
             )
 
@@ -307,6 +378,8 @@ def process_xg():
             home_goals
         )
 
+    updated = 0
+
     for team, values in team_data.items():
 
         matches_played = len(
@@ -353,8 +426,10 @@ def process_xg():
             matches_played
         )
 
+        updated += 1
+
     print(
-        f"Updated {len(team_data)} teams"
+        f"Updated {updated} teams"
     )
 
 
