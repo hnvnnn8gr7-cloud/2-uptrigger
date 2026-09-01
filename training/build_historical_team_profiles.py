@@ -50,6 +50,10 @@ def build_profiles():
 
     for team in teams:
 
+        team = normalize_team(
+            team
+        )
+
         team_df = df[
             df["trigger_team"] == team
         ]
