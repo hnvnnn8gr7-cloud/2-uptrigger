@@ -5,6 +5,22 @@ from datetime import (
     timezone
 )
 
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = (
+    Path(__file__)
+    .resolve()
+    .parent
+    .parent
+)
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(
+        str(PROJECT_ROOT)
+    )
+
+
 from database import (
     get_db,
     save_league_stats
