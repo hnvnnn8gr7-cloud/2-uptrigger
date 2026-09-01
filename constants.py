@@ -19,3 +19,66 @@ BET_COLUMNS = [
     "liability",
     "model_version"
 ]
+
+SUPPORTED_LEAGUES = [
+
+    # England
+
+    "Premier League",
+    "Championship",
+    "League One",
+    "League Two",
+
+    # Scotland
+
+    "Scottish Premiership",
+
+    # Germany
+
+    "Bundesliga",
+    "2. Bundesliga",
+
+    # Spain
+
+    "La Liga",
+
+    # Italy
+
+    "Serie A",
+
+    # France
+
+    "Ligue 1",
+
+    # Netherlands
+
+    "Eredivisie",
+
+    # Belgium
+
+    "Belgian Pro League",
+
+    # Portugal
+
+    "Primeira Liga",
+
+    # MLS
+
+    "Major League Soccer",
+
+    # Denmark
+
+    "Superliga",
+
+    # Norway
+
+    "Eliteserien",
+
+    # Sweden
+
+    "Allsvenskan",
+
+    # Ireland
+
+    "Premier Division"
+]
