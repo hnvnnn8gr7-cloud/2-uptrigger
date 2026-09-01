@@ -27,7 +27,7 @@ from database import (
 )
 
 CSV_FILE = (
-    "2up_multi_league_dataset.csv"
+    "data/2up_multi_league_dataset.csv"
 )
 
 
