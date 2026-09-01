@@ -102,7 +102,7 @@ def get_completed_fixtures():
             timeout=60
     )
 
-    response.raise_for_status()
+         response.raise_for_status()
 
 except Exception as exc:
 
