@@ -260,7 +260,7 @@ def collect_odds():
 
         for bookmaker in enabled_bookmakers:
 
-    try:
+        try:
 
         odds_data = (
             get_fixture_odds(
@@ -269,7 +269,7 @@ def collect_odds():
             )
         )
 
-    except Exception as exc:
+  except Exception as exc:
 
         if "429" in str(exc):
 
