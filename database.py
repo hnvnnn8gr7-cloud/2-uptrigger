@@ -580,6 +580,25 @@ def get_model_runs():
     return rows
 
 
+def get_tracked_teams():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT team
+        FROM team_stats
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        row[0]
+        for row in rows
+    }
+
+
 def save_league_stats(
     league,
     matches,
