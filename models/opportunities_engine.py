@@ -1,11 +1,17 @@
 import sys
 from pathlib import Path
 
-sys.path.append(
-    str(
-        Path(__file__).resolve().parent.parent
-    )
+PROJECT_ROOT = (
+    Path(__file__)
+    .resolve()
+    .parent
+    .parent
 )
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(
+        str(PROJECT_ROOT)
+    )
 
 from database import get_db
 
@@ -16,6 +22,7 @@ from calculations import (
     calculate_fta_profit,
     calculate_expected_profit,
     calculate_ev_percent,
+    calculate_ev_rating,
     calculate_ranking_score
 )
 
@@ -28,10 +35,6 @@ from models.model import (
 def estimate_lay_odds(
     back_odds
 ):
-    """
-    Estimate exchange lay odds when
-    no live exchange odds exist.
-    """
 
     if back_odds < 2:
         margin = 0.03
@@ -51,6 +54,7 @@ def estimate_lay_odds(
 def get_team_stats(
     team
 ):
+
     conn = get_db()
 
     row = conn.execute(
@@ -90,13 +94,20 @@ def get_team_stats(
     return {
         "avg_xg": row[0],
         "avg_xga": row[1],
+
         "xg_edge": row[2],
+
         "goals_last5": row[3],
         "conceded_last5": row[4],
+
         "turnaround_pct": row[5],
+
         "historical_turnaround_rate": row[6],
+
         "two_up_trigger_rate": row[7],
+
         "league_turnaround_rate": row[8],
+
         "opponent_turnaround_rate": row[9]
     }
 
@@ -106,6 +117,7 @@ def build_opportunity(
     stake=40,
     commission=2
 ):
+
     team = fixture["team"]
 
     stats = get_team_stats(
@@ -201,6 +213,14 @@ def build_opportunity(
         )
     )
 
+    ql_percent = (
+        abs(
+            qualifying_loss
+        )
+        /
+        stake
+    ) * 100
+
     fta_profit = (
         calculate_fta_profit(
             stake,
@@ -222,6 +242,14 @@ def build_opportunity(
         calculate_ev_percent(
             expected_profit,
             qualifying_loss
+        )
+    )
+
+    ev_rating = (
+        calculate_ev_rating(
+            fta_pct,
+            qualifying_loss,
+            stake
         )
     )
 
@@ -306,6 +334,12 @@ def build_opportunity(
                 2
             ),
 
+        "ql_percent":
+            round(
+                ql_percent,
+                2
+            ),
+
         "fta_profit":
             round(
                 fta_profit,
@@ -324,6 +358,12 @@ def build_opportunity(
                 2
             ),
 
+        "ev_rating":
+            round(
+                ev_rating,
+                2
+            ),
+
         "ranking_score":
             round(
                 ranking_score,
@@ -337,18 +377,14 @@ def rebuild_opportunity(
     lay_odds,
     commission
 ):
-    """
-    Recalculate EV when the user
-    changes lay odds or commission.
-    """
 
-    back_odds = opportunity[
-        "back_odds"
-    ]
+    back_odds = (
+        opportunity["back_odds"]
+    )
 
-    stake = opportunity[
-        "stake"
-    ]
+    stake = (
+        opportunity["stake"]
+    )
 
     lay_stake = (
         calculate_lay_stake(
@@ -376,6 +412,14 @@ def rebuild_opportunity(
         )
     )
 
+    ql_percent = (
+        abs(
+            qualifying_loss
+        )
+        /
+        stake
+    ) * 100
+
     fta_profit = (
         calculate_fta_profit(
             stake,
@@ -402,64 +446,70 @@ def rebuild_opportunity(
         )
     )
 
+    ev_rating = (
+        calculate_ev_rating(
+            opportunity[
+                "fta_pct"
+            ],
+            qualifying_loss,
+            stake
+        )
+    )
+
     updated = dict(
         opportunity
     )
 
-    updated[
-        "lay_odds"
-    ] = round(
+    updated["lay_odds"] = round(
         lay_odds,
         2
     )
 
-    updated[
-        "commission"
-    ] = commission
+    updated["commission"] = (
+        commission
+    )
 
-    updated[
-        "estimated_lay"
-    ] = False
+    updated["estimated_lay"] = (
+        False
+    )
 
-    updated[
-        "lay_stake"
-    ] = round(
+    updated["lay_stake"] = round(
         lay_stake,
         2
     )
 
-    updated[
-        "liability"
-    ] = round(
+    updated["liability"] = round(
         liability,
         2
     )
 
-    updated[
-        "qualifying_loss"
-    ] = round(
+    updated["qualifying_loss"] = round(
         qualifying_loss,
         2
     )
 
-    updated[
-        "fta_profit"
-    ] = round(
+    updated["ql_percent"] = round(
+        ql_percent,
+        2
+    )
+
+    updated["fta_profit"] = round(
         fta_profit,
         2
     )
 
-    updated[
-        "expected_profit"
-    ] = round(
+    updated["expected_profit"] = round(
         expected_profit,
         2
     )
 
-    updated[
-        "ev_percent"
-    ] = round(
+    updated["ev_percent"] = round(
         ev_percent,
+        2
+    )
+
+    updated["ev_rating"] = round(
+        ev_rating,
         2
     )
 
@@ -469,6 +519,7 @@ def rebuild_opportunity(
 def rank_opportunities(
     fixtures
 ):
+
     opportunities = []
 
     for fixture in fixtures:
@@ -480,13 +531,14 @@ def rank_opportunities(
         )
 
         if opportunity:
+
             opportunities.append(
                 opportunity
             )
 
     opportunities.sort(
         key=lambda x:
-        x["ranking_score"],
+        x["ev_rating"],
         reverse=True
     )
 
@@ -497,6 +549,7 @@ def get_top_opportunities(
     fixtures,
     limit=20
 ):
+
     ranked = (
         rank_opportunities(
             fixtures
