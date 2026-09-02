@@ -205,6 +205,51 @@ def calculate_win_rate(
         2
     )
 
+def calculate_ev_rating(
+    fta_pct,
+    qualifying_loss,
+    stake
+):
+    """
+    EV Rating
+
+    100% means:
+
+    FTA %
+    ==
+    Qualifying Loss %
+
+    >100%
+    Better
+
+    <100%
+    Worse
+    """
+
+    if stake <= 0:
+        return 0
+
+    ql_percent = (
+        abs(
+            qualifying_loss
+        )
+        /
+        stake
+    ) * 100
+
+    if ql_percent <= 0:
+        return 0
+
+    return round(
+        (
+            fta_pct
+            /
+            ql_percent
+        )
+        * 100,
+        2
+    )
+
 
 def calculate_ranking_score(
     expected_profit,
