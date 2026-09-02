@@ -21,6 +21,10 @@ from constants import (
     SUPPORTED_LEAGUES
 )
 
+from team_normalizer import (
+    normalize_team
+)
+
 API_FOOTBALL_KEY = "aa7c72b2db786ed876c98fdafd5274b4"
 
 DB_NAME = "two_up.db"
